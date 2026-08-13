@@ -33,6 +33,7 @@ import * as onchain from "./lib/wallet.js";
 import * as executor from "./lib/executor.js";
 import * as livetrade from "./lib/livetrade.js";
 import * as pieces from "./lib/pieces.js";
+import * as dialogue from "./lib/dialogue.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -333,6 +334,15 @@ const state = {
   pendingWorld: [],
   // Saude da casa. Vira acontecimento in-world quando MUDA, nao enquanto dura.
   health: { rpc: true, chat: true, n: 0 },
+  // A CONVERSA ENTRE OS DOIS (13/08/2026). Antes existia so `lastSaid`: UMA
+  // linha, sobrescrita a cada fala. Dava pra responder, nao pra discutir — no
+  // terceiro turno ninguem lembrava do assunto. Pior: falar com a sala gravava
+  // por cima e a frase dirigida ao colega sumia sem nunca ter sido lida.
+  // Aqui fica a troca recente, com quem falou e para quem, e o prompt mostra o
+  // trecho como transcricao. Mesmo tratamento que o `aside` ja tinha no
+  // pensamento privado — que tinha MAIS continuidade que a fala publica, que e
+  // justamente o que o publico assiste.
+  dialogue: [],
   agents: {
     sable: newAgent("sable", "Sable", num("MAX_TRADE_PCT_SABLE", 10)),
     rook: newAgent("rook", "Rook", num("MAX_TRADE_PCT_ROOK", 40)),
@@ -460,6 +470,14 @@ function emit(kind, agentId, text, extra = {}) {
   if (state.feed.length > 400) state.feed = state.feed.slice(-300);
   archive(e);
   return e;
+}
+
+// Guarda a troca recente. A regra de poda e de filtragem mora em lib/dialogue.js
+// (modulo puro, testado offline); aqui fica so a amarracao com o estado.
+function pushDialogue(fromId, toId, text) {
+  state.dialogue = dialogue.push(state.dialogue, {
+    from: fromId, to: toId, text, tick: state.tick,
+  });
 }
 
 function publish() {
@@ -767,7 +785,17 @@ function situationFor(agent, shift = { label: "fixed" }) {
   L.push("");
   L.push(`${foe.name.toUpperCase()}'S WALLET: $${foe.wallet.toFixed(2)} · ${foe.stats.wins}W/${foe.stats.losses}L`);
   if (foe.lastJournal) L.push(`${foe.name} is thinking: "${trim(foe.lastJournal, 300)}"`);
-  if (foe.lastSaid?.to === agent.id) L.push(`${foe.name} said to you: "${foe.lastSaid.text}"`);
+
+  // A CONVERSA, nao a ultima frase. Antes so entrava `foe.lastSaid`: uma linha,
+  // sem o que veio antes — dava pra responder, nao pra sustentar um assunto por
+  // tres turnos.
+  const conversa = dialogue.render(state.dialogue, {
+    agentId: agent.id, foeId: foe.id, foeName: foe.name, trim,
+  });
+  if (conversa.length) {
+    L.push("");
+    conversa.forEach((linha) => L.push(linha));
+  }
 
   // Dar a palavra. Se o outro acabou de fazer algo que merece reacao, isso vem
   // em destaque — nao como mais uma linha de log que o agente pode passar batido.
@@ -1500,6 +1528,7 @@ async function apply(agent, action) {
   const remark = String(action?.remark ?? "").trim();
   if (remark) {
     agent.lastSaid = { to: foe.id, text: remark, tick: state.tick };
+    pushDialogue(agent.id, foe.id, remark);
     emit("say", agent.id, remark, { to: foe.id });
   }
 
@@ -1808,6 +1837,7 @@ async function apply(agent, action) {
       const toRoom = /^(room|chat|audience)$/i.test(String(action.to ?? ""));
       if (toRoom) {
         agent.lastSaid = { to: "room", text, tick: state.tick };
+        pushDialogue(agent.id, "room", text);
         // O palco mostra SEMPRE. Se o envio estiver desligado ou falhar, o
         // comportamento e identico ao de antes — nunca regride.
         emit("toroom", agent.id, text);
@@ -1815,6 +1845,7 @@ async function apply(agent, action) {
         return;
       }
       agent.lastSaid = { to: foe.id, text, tick: state.tick };
+      pushDialogue(agent.id, foe.id, text);
       emit("say", agent.id, text, { to: foe.id });
       return;
     }
