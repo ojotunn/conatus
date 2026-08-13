@@ -1,0 +1,12 @@
+# Nada disto entra na imagem. src/data e .env ja sao ignorados pelo git, mas o
+# .dockerignore vale tambem para build local, onde a pasta EXISTE (742 MB de
+# perfis de navegador logados — nunca dentro de uma imagem).
+.git
+.gitignore
+node_modules
+src/data
+.env
+.env.*
+!.env.example
+*.log
+.claude
