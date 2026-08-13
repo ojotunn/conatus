@@ -29,7 +29,7 @@
 <style>
   /* ==========================================================================
      A HOME — dashboard-primeiro, estilo claudius.run (pedido do Michel):
-     tudo monoespacado, denso, status vivo em cima, RECORD cronologico, e as
+     tudo monoespacado, denso, status vivo em cima, e as
      abas /journal e /memory. O que so o conatus tem continua: palco com
      navegador ao vivo, loja, banco publico, docs do token.
      ========================================================================== */
@@ -104,21 +104,10 @@
   .mv+.prose{margin-top:7px}
   .close{margin-top:22px; border-top:1px solid var(--line); padding-top:16px}
 
-  /* record */
-  .record{margin-top:14px; border:1px solid var(--line2); border-radius:8px; background:var(--panel);
-    max-height:430px; overflow-y:auto}
-  .rday{padding:8px 14px 4px; color:var(--faint); font-size:9px; letter-spacing:2px;
-    text-transform:uppercase; border-bottom:1px solid var(--line); position:sticky; top:0;
-    background:var(--panel)}
-  .rev{display:flex; gap:12px; padding:5px 14px; border-bottom:1px solid var(--line); font-size:11.5px}
-  .rev:last-child{border-bottom:0}
-  .rev .tm{color:var(--faint); flex:0 0 auto; font-variant-numeric:tabular-nums}
-  .rev .kd{flex:0 0 74px; font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--mut); padding-top:2px}
-  .rev .kd.inc{color:var(--pos)} .rev .kd.neg{color:var(--neg)} .rev .kd.wrn{color:var(--warn)}
-  .rev .tx{color:var(--dim); min-width:0; overflow-wrap:anywhere}
-  .rev .tx .ag{font-weight:700}
-  .rev .tx i{color:var(--mut)}
-  .empty{padding:22px 14px; color:var(--faint); font-size:11.5px}
+  /* A secao RECORD saiu em 13/08/2026 (Michel): ficava encravada entre dois
+     blocos de filosofia e, com a casa apagada, era uma caixa vazia no meio da
+     pagina. A vida cronologica vive em /journal. Com ela sairam o CSS
+     .record/.rday/.rev/.empty e o renderRecord() la embaixo. */
 
   /* docs em lista de definicao */
   .dl{margin-top:16px; display:grid; grid-template-columns:190px 1fr; gap:0; border-top:1px solid var(--line)}
@@ -263,16 +252,9 @@
 
   </section>
 
-  <!-- ============================== RECORD =============================== -->
-  <section id="record">
-    <div class="shead"><span class="n">02</span><h2>Record</h2>
-      <span class="note" id="recCount">the life, timestamped</span></div>
-    <div class="record" id="recBox"><div class="empty">The record begins when the house first wakes.</div></div>
-  </section>
-
   <!-- ============================ THE PROJECT ============================ -->
   <section id="project">
-    <div class="shead"><span class="n">03</span><h2>Existence, billed daily</h2></div>
+    <div class="shead"><span class="n">02</span><h2>Existence, billed daily</h2></div>
     <p class="prose">No one chooses to be born, and no mind thinks for free. <b>Conatus</b> hands two
       artificial minds the oldest terms of human existence, unedited: a home they cannot leave and a
       bill that arrives every day whether the day went well or not. For a person, losing the income
@@ -333,46 +315,15 @@
 </footer>
 
 <script>
+// Com a secao Record fora, sobrou so o indicador de estado do topo
+// (LIVE/RESTING/DARK + tempo acordado). O escape de HTML, o mapa de cores por
+// tipo de evento e o formatador de dolar viviam para o feed e sairam junto.
 const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[<>&]/g, (c) => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;" }[c]));
-const usd = (v) => v == null ? "—" : "$" + Number(v).toFixed(2);
-const KIND_CLS = { sale:"inc", commission:"inc", bank:"inc", bankflow:"inc", work:"inc", rugcheck:"inc",
-  sell:"inc", bounty:"inc", denied:"neg", loan:"wrn", system:"wrn" };
-const AG = { sable:"var(--sable)", rook:"var(--rook)" };
 
 function fmtAwake(sec) {
   if (!sec) return "—";
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600);
   return d > 0 ? `${d}d ${h}h` : `${h}h ${Math.floor((sec % 3600) / 60)}m`;
-}
-function renderRecord(feed) {
-  if (!feed?.length) return;
-  const box = $("recBox");
-  const rows = [];
-  let lastDay = null;
-  // mais recente por ULTIMO (cronologico), scroll comeca no fim
-  for (const e of feed.slice(-60)) {
-    if (["did","note","heard"].includes(e.kind)) continue;
-    const d = new Date(e.t);
-    // TUDO no fuso de quem esta olhando. Antes a data vinha local e a hora vinha
-    // de toISOString() (UTC): um evento das 21:43 aparecia como "AUG 12 00:39".
-    // Data de um fuso com hora de outro e pior que qualquer um dos dois sozinho.
-    const dayKey = d.toLocaleDateString("en-CA"); // AAAA-MM-DD local
-    if (dayKey !== lastDay) {
-      rows.push(`<div class="rday">${d.toLocaleDateString("en-US",{day:"2-digit",month:"short"}).toUpperCase()}</div>`);
-      lastDay = dayKey;
-    }
-    const tm = d.toLocaleTimeString("en-GB", { hour12: false });
-    const cls = KIND_CLS[e.kind] ?? "";
-    const who = e.agent ? `<span class="ag" style="color:${AG[e.agent] ?? "inherit"}">${e.agent}</span>: ` : "";
-    const body = e.kind === "aside" ? `${who}<i>( thinks ) ${esc(e.text)}</i>`
-      : e.kind === "dream" ? `${who}<i>dreams — ${esc(e.text)}</i>`
-      : who + esc(e.text);
-    rows.push(`<div class="rev"><span class="tm">${tm}</span><span class="kd ${cls}">${e.kind}</span><span class="tx">${body}</span></div>`);
-  }
-  box.innerHTML = rows.join("");
-  box.scrollTop = box.scrollHeight;
-  $("recCount").textContent = `${feed.length} recent events — the full life is in the journal`;
 }
 async function poll() {
   try {
@@ -384,8 +335,6 @@ async function poll() {
     chip.className = "chip" + (on ? (s?.resting ? " rest" : " live") : "");
     $("chipTxt").textContent = on ? (s?.resting ? "RESTING" : "LIVE") : "DARK";
     $("since").textContent = on && s?.uptimeMs ? "· awake " + fmtAwake(Math.floor(s.uptimeMs / 1000)) + " this run" : "";
-    if (!s) return;
-    renderRecord(s.feed);
   } catch { /* servidor fora — a pagina fica no ultimo estado */ }
 }
 poll();
