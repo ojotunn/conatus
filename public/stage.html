@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conatus — Live</title>
+<style>
+  /* ==========================================================================
+     O PALCO — versao broadcast. Captura 1920x1080, sem rolagem.
+     A PAGINA que cada agente navega e o heroi de cada lado; a atividade vira
+     uma faixa curta com icones de linha; o rodape carrega o dinheiro real.
+     A caixa de dialogo atravessa o centro so quando eles se falam.
+     Paleta contida (neutro + 1 acento por agente), hairlines em vez de caixas.
+     ========================================================================== */
+  :root{
+    --bg:#0a0d12; --panel:#0c1017; --line:#161c28; --line2:#1a2130;
+    --txt:#e6ebf2; --dim:#c4cdda; --mut:#6b7688;
+    --pos:#2fbd85; --neg:#f0616d; --warn:#e0a13a;
+    --sable:#5b9dff; --rook:#ff7a45;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%; overflow:hidden}
+  body{background:var(--bg); color:var(--txt);
+    font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; font-feature-settings:'tnum' 1}
+  .ic{width:13px; height:13px; flex:0 0 auto; fill:none; stroke:currentColor;
+    stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round}
+  .ar{width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:2.4;
+    stroke-linecap:round; stroke-linejoin:round}
+
+  /* ------------------------------- HEADER ------------------------------- */
+  .top{flex:0 0 52px; display:flex; align-items:center; gap:14px; padding:0 20px;
+    border-bottom:1px solid var(--line)}
+  .brand{font-weight:700; letter-spacing:3px; font-size:12px; display:flex; align-items:center; gap:9px}
+  .brand .mark{width:17px; height:17px; border-radius:5px;
+    background:linear-gradient(135deg,var(--sable),var(--rook))}
+  .brand small{color:var(--mut); font-weight:500; letter-spacing:1px; font-size:10px}
+  .live{display:inline-flex; align-items:center; gap:5px; font-size:9px; letter-spacing:1.5px;
+    color:var(--neg); font-weight:700}
+  .live .d{width:6px; height:6px; border-radius:50%; background:var(--neg)}
+  .spacer{flex:1}
+  .shift{font-size:9.5px; padding:4px 11px; border-radius:99px; border:1px solid var(--line);
+    color:var(--mut); text-transform:uppercase; letter-spacing:1.2px; margin-right:6px}
+  .mets{display:flex; align-items:stretch}
+  .met{padding:0 15px; border-left:1px solid var(--line); display:flex; flex-direction:column;
+    justify-content:center; gap:3px}
+  .met .k{font-size:8.5px; color:var(--mut); text-transform:uppercase; letter-spacing:1.5px}
+  .met .v{font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; display:flex; align-items:center; gap:6px}
+  .met .v.red{color:var(--neg)} .met .v.ok{color:var(--pos)} .met .v.warn{color:var(--warn)}
+
+  /* -------------------------------- STAGE ------------------------------- */
+  .stage{flex:1; display:flex; position:relative; min-height:0}
+  .side{flex:1; display:flex; flex-direction:column; min-width:0; position:relative; overflow:hidden}
+  .side.left{border-right:1px solid var(--line); --ac:var(--sable); --acdim:#22344e}
+  .side.right{--ac:var(--rook); --acdim:#4a3421}
+  .side .tint{position:absolute; inset:0; pointer-events:none; opacity:.05}
+  .left .tint{background:radial-gradient(ellipse at 15% 0%, var(--sable), transparent 55%)}
+  .right .tint{background:radial-gradient(ellipse at 85% 0%, var(--rook), transparent 55%)}
+
+  /* PAGINA (heroi) */
+  .look{margin:14px 16px 10px; border:1px solid var(--line2); border-radius:10px; overflow:hidden;
+    background:var(--panel); box-shadow:0 8px 30px rgba(0,0,0,.35); display:none;
+    flex-direction:column; min-height:0}
+  .look.on{display:flex; flex:1 1 auto}
+  .look .chrome{display:flex; align-items:center; gap:9px; padding:8px 12px;
+    border-bottom:1px solid var(--line2); flex:0 0 auto}
+  .look .chrome .ic{stroke:var(--mut)}
+  .look .chrome .host{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:10.5px;
+    color:#8a95a6; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .look .chrome .scan{margin-left:auto; font-size:9px; color:var(--ac); letter-spacing:1px;
+    text-transform:uppercase; flex:0 0 auto}
+  /* `contain`: mostra o screenshot INTEIRO (sem cortar). Onde a proporcao nao
+     bate, sobra fundo escuro em vez de recorte. object-position:top = a pagina
+     comeca do topo, como o agente ve. */
+  .look .lk-hd{flex:0 0 auto}
+  .look .lk-bd{flex:1 1 auto; min-height:0; display:flex; flex-direction:column}
+  /* O live view do Browserbase e um DEBUGGER interativo: sem isto, quem abre o
+     palco poderia CLICAR dentro do navegador do agente e sequestrar a sessao.
+     O espectador ve; nao toca. */
+  .look .lk-bd iframe{pointer-events:none}
+  .look img.shot{width:100%; flex:1 1 auto; min-height:0; object-fit:contain; object-position:top;
+    background:#0c1017; display:block}
+  .look iframe{width:100%; flex:1 1 auto; min-height:0; border:0; background:#fff; display:block}
+  /* NUNCA UM RETANGULO PRETO. Antes de o agente abrir a primeira pagina o
+     painel ficava literalmente vazio, e quem chegava no comeco via um vazio
+     sem explicacao. Um show nao tem estado "preto": tem estado "ainda nao". */
+  .look .waiting{flex:1 1 auto; display:flex; align-items:center; justify-content:center;
+    padding:24px; text-align:center; background:
+      repeating-linear-gradient(45deg,#0c1017,#0c1017 10px,#0e131b 10px,#0e131b 20px)}
+  .look .waiting span{font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+    color:#5c6b80}
+  .look .readbody{padding:12px 14px; overflow:hidden}
+  .look .readbody svg{display:block; width:100%; height:44px; margin-bottom:8px}
+  .look pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11.5px;
+    line-height:1.55; color:#aebacb; white-space:pre-wrap; word-break:break-word;
+    max-height:150px; overflow:hidden}
+
+  /* ATIVIDADE (faixa curta, icone + 1 linha) */
+  .acts{flex:0 0 auto; max-height:158px; overflow:hidden; padding:2px 20px 4px;
+    display:flex; flex-direction:column; gap:8px; justify-content:flex-end}
+  .side:not(:has(.look.on)) .acts{flex:1 1 auto; max-height:none; padding-top:18px}
+  .act{display:flex; align-items:center; gap:9px; min-width:0}
+  .act.dim{opacity:.38}
+  .act .t{font-size:12px; color:var(--dim); overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; min-width:0; flex:1}
+  .act .t .s{color:var(--mut)}
+  .act .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11.5px; letter-spacing:.2px}
+  .act .v{font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; flex:0 0 auto}
+  .act.think{color:var(--mut)} .act.nav{color:var(--mut)}
+  .act.rest{color:var(--mut)} .act.rest .t{font-style:italic}
+  /* Renda ganha destaque: leve fundo verde e barra na lateral — e o momento do
+     dinheiro, nao pode passar batido como uma linha qualquer. */
+  .act.income{color:var(--pos); background:rgba(47,189,133,.08); border-left:2px solid var(--pos);
+    margin:0 -12px 0 -14px; padding:4px 12px 4px 12px; border-radius:0 6px 6px 0}
+  .act.income.dim{background:rgba(47,189,133,.04)}
+  .act.income .t{color:var(--dim)} .act.income .v{color:var(--pos)}
+  .act.denied{color:var(--neg)} .act.denied .t{color:var(--neg)}
+  .act.prop{color:var(--warn)} .act.trade{color:var(--dim)}
+  .act.room{color:var(--ac)} .act.heard{color:var(--mut)}
+
+  /* JANELA DO PENSAMENTO (acima do retrato)
+     O aside e a camada mais honesta do show: o publico ve, o OUTRO AGENTE
+     NUNCA. Isso merece casa propria — passando como mais uma linha da corrente
+     de atividade, a fala publica e o pensamento privado ficam com o mesmo peso
+     visual, e sao coisas opostas. Balao com o canto de baixo mordido (bolha de
+     pensamento), tracejado para ler como "nao dito". Altura fixa: o palco e
+     captura 1920x1080 sem rolagem, entao o bloco nao pode empurrar o rodape. */
+  .mind{flex:0 0 auto; margin:0 20px 10px; padding:8px 12px 9px; min-height:62px;
+    border:1px dashed var(--line2); border-radius:12px 12px 12px 3px;
+    background:linear-gradient(180deg, rgba(255,255,255,.015), rgba(255,255,255,0));
+    display:flex; flex-direction:column; gap:5px; justify-content:center;
+    transition:border-color .5s}
+  /* Pensamento recem-nascido acende na cor do agente e esfria sozinho. */
+  .mind.fresh{border-color:var(--acdim); background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0))}
+  .mind .mh{display:flex; align-items:center; gap:6px; font-size:8px; letter-spacing:1.7px;
+    text-transform:uppercase; color:var(--mut)}
+  .mind .mh .ic{width:11px; height:11px}
+  .mind .mh .tag{margin-left:auto; letter-spacing:1.2px; opacity:.75}
+  .mind .mt{font-size:12.5px; line-height:1.45; color:#9aa5b6; font-style:italic;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  .mind.quiet .mt{color:var(--mut); opacity:.45}
+  .mind.dream .mh{color:#7d88a8}
+  .mind.dream .mt{color:#8f97b4}
+
+  /* RODAPE */
+  .who{flex:0 0 auto; display:flex; align-items:flex-end; gap:14px; padding:13px 20px 8px;
+    border-top:1px solid var(--line)}
+  .face{width:44px; height:44px; border-radius:9px; object-fit:cover; flex:0 0 auto;
+    border:1px solid var(--acdim); filter:grayscale(.1)}
+  .info{flex:1; min-width:0}
+  .nmrow{display:flex; align-items:center; gap:8px}
+  .nm{font-size:11px; font-weight:700; letter-spacing:2px; color:var(--ac)}
+  .badge-i{font-size:8px; letter-spacing:.6px; text-transform:uppercase; border-radius:4px;
+    padding:1px 6px; border:1px solid}
+  .badge-i.solvent{color:var(--pos); border-color:#1e5540; background:#0f2419}
+  .badge-i.arrears{color:var(--warn); border-color:#5a4620; background:#241c0f}
+  .badge-i.evicted{color:var(--neg); border-color:#5a2530; background:#24121a}
+  .cash{display:flex; align-items:baseline; gap:6px; margin-top:2px}
+  .cash .num{font-size:26px; font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; line-height:1}
+  .cash .num.mut{color:var(--mut)}
+  .cash .unit{font-size:12px; color:var(--mut); font-weight:600}
+  .real{font-size:11.5px; color:#8a95a6; margin-top:3px; font-variant-numeric:tabular-nums;
+    display:flex; align-items:center; gap:5px; flex-wrap:wrap}
+  .real .up{color:var(--pos); font-weight:600; display:inline-flex; align-items:center; gap:3px}
+  .real .down{color:var(--neg); font-weight:600; display:inline-flex; align-items:center; gap:3px}
+  .real .stale{color:var(--mut)}
+  .earn{flex:0 0 auto; text-align:right}
+  .earn .k{font-size:8.5px; letter-spacing:1.5px; color:var(--mut); text-transform:uppercase}
+  .eval{font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.25}
+  .eval.pos{color:var(--pos)} .eval.zero{color:var(--mut)}
+  .ebar{display:flex; gap:2px; width:110px; height:4px; border-radius:2px; overflow:hidden;
+    margin:5px 0 0 auto; background:#141a26}
+  .emeta{font-size:9px; color:var(--mut); margin-top:4px; font-variant-numeric:tabular-nums}
+
+  /* DOACAO */
+  .donate{flex:0 0 auto; display:flex; align-items:center; gap:9px; padding:2px 20px 14px}
+  .donate .dlbl{font-size:8.5px; letter-spacing:1.5px; text-transform:uppercase; color:var(--mut); flex:0 0 auto}
+  .donate .daddr{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:10px;
+    color:#7f8b9c; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .donate .copy{display:inline-flex; align-items:center; gap:5px; background:transparent;
+    border:1px solid var(--acdim); border-radius:6px; color:var(--dim); font-size:9px;
+    letter-spacing:.8px; text-transform:uppercase; padding:4px 9px; cursor:pointer;
+    transition:border-color .15s,color .15s}
+  .donate .copy .ic{width:11px; height:11px}
+  .donate .copy.done{border-color:var(--pos); color:var(--pos)}
+
+  /* CAIXA DE DIALOGO (centro, so quando se falam) */
+  .talk{position:absolute; left:50%; top:58%; transform:translate(-50%,-50%);
+    width:min(520px, 54%); background:#0e1219; border:1px solid var(--line2);
+    border-radius:14px; box-shadow:0 26px 70px rgba(0,0,0,.7);
+    padding:15px 18px; display:none; flex-direction:column; gap:11px}
+  .talk.on{display:flex}
+  .talk .hdr{font-size:8.5px; letter-spacing:2px; text-transform:uppercase; color:var(--mut);
+    display:flex; justify-content:space-between}
+  .line{display:flex; gap:11px; font-size:14px; line-height:1.55}
+  .line .from{flex:0 0 52px; font-weight:700; font-size:11px; letter-spacing:1px;
+    text-transform:uppercase; padding-top:2px}
+  .line.sable .from{color:var(--sable)} .line.rook .from{color:var(--rook)}
+  .line.objection .txt{color:var(--warn)}
+  .line .txt{min-width:0; color:var(--dim)}
+
+  /* FAIXA DE SISTEMA (aluguel, despejo, turno) */
+  .sys{position:absolute; left:50%; bottom:104px; transform:translateX(-50%);
+    padding:8px 18px; border-radius:8px;
+    background:rgba(224,161,58,.1); border:1px solid rgba(224,161,58,.28); color:var(--warn);
+    font-size:11px; letter-spacing:1.4px; text-transform:uppercase; display:none; white-space:nowrap}
+  .sys.on{display:block}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand"><span class="mark"></span><span id="brand">Conatus</span> <small id="tagline"></small></div>
+  <span class="live"><span class="d"></span>LIVE</span>
+  <a href="/journal" target="_blank" style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--mut);text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:4px 11px;margin-right:6px">journal ↗</a>
+  <a href="/store" target="_blank" style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--mut);text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:4px 11px">store ↗</a>
+  <div class="spacer"></div>
+  <div class="shift" id="shift" style="display:none"></div>
+  <div class="mets">
+    <div class="met"><div class="k">Day</div><div class="v" id="mDay">—</div></div>
+    <div class="met"><div class="k">Rent tonight</div><div class="v warn" id="mRent">—</div></div>
+    <div class="met"><div class="k">Agents total</div><div class="v" id="mTre">—</div></div>
+    <div class="met"><div class="k">Bank · dev wallet</div><div class="v" id="mBank">—</div></div>
+    <div class="met"><div class="k">Runway</div><div class="v" id="mRun">—</div></div>
+    <div class="met"><div class="k">Uptime</div><div class="v" id="mUp">—</div></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="side left" id="side-sable">
+    <div class="tint"></div>
+    <div class="look" id="look-sable"></div>
+    <div class="acts" id="acts-sable"></div>
+    <div class="mind" id="mind-sable"></div>
+    <div class="who">
+      <img class="face" id="face-sable" src="/assets/sable.png" alt="">
+      <div class="info">
+        <div class="nmrow"><span class="nm">SABLE</span><span id="badge-sable"></span></div>
+        <div class="cash" id="cash-sable"></div>
+        <div class="real" id="real-sable"></div>
+      </div>
+      <div class="earn">
+        <div class="k">Earned today</div>
+        <div class="eval" id="earn-sable">—</div>
+        <div class="ebar" id="ebar-sable"></div>
+        <div class="emeta" id="emeta-sable"></div>
+      </div>
+    </div>
+    <div class="donate" id="donate-sable"></div>
+  </div>
+
+  <div class="side right" id="side-rook">
+    <div class="tint"></div>
+    <div class="look" id="look-rook"></div>
+    <div class="acts" id="acts-rook"></div>
+    <div class="mind" id="mind-rook"></div>
+    <div class="who">
+      <img class="face" id="face-rook" src="/assets/rook.png" alt="">
+      <div class="info">
+        <div class="nmrow"><span class="nm">ROOK</span><span id="badge-rook"></span></div>
+        <div class="cash" id="cash-rook"></div>
+        <div class="real" id="real-rook"></div>
+      </div>
+      <div class="earn">
+        <div class="k">Earned today</div>
+        <div class="eval" id="earn-rook">—</div>
+        <div class="ebar" id="ebar-rook"></div>
+        <div class="emeta" id="emeta-rook"></div>
+      </div>
+    </div>
+    <div class="donate" id="donate-rook"></div>
+  </div>
+
+  <div class="talk" id="talk">
+    <div class="hdr"><span>they are talking</span><span id="talkWhen"></span></div>
+    <div id="talkLines"></div>
+  </div>
+
+  <div class="sys" id="sys"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[<>&]/g, (c) => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;" }[c]));
+const usd = (n) => (n < 0 ? "-$" : "$") + Math.abs(Number(n || 0)).toFixed(2);
+const usd4 = (n) => "$" + Math.abs(Number(n || 0)).toFixed(4);
+const shorten = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n) + "…" : s; };
+
+function fmtUptime(ms) {
+  const s = Math.max(0, Math.floor((ms || 0) / 1000));
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+// Icones de linha (stroke = cor do texto ao redor).
+const IC = {
+  search:'<svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+  globe:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2"/><path d="M2.8 12h18.4M12 2.8c3 3 3 15.4 0 18.4M12 2.8c-3 3-3 15.4 0 18.4"/></svg>',
+  thought:'<svg class="ic" viewBox="0 0 24 24"><path d="M21 11.5a8 8 0 0 1-8 8H8l-4 3v-3.5a8 8 0 1 1 17-7.5z"/></svg>',
+  pause:'<svg class="ic" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>',
+  trend:'<svg class="ic" viewBox="0 0 24 24"><path d="M3 16l6-6 4 4 8-8"/><path d="M15 6h6v6"/></svg>',
+  check:'<svg class="ic" viewBox="0 0 24 24"><path d="M20 6.5 9.2 17.5 4 12.3"/></svg>',
+  x:'<svg class="ic" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  coin:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.6 10a2.4 2 0 0 1 4.8 0M9.6 14a2.4 2 0 0 0 4.8 0"/></svg>',
+  speaker:'<svg class="ic" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>',
+  dot:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/></svg>',
+  // Bolha de PENSAMENTO (as tres bolinhas saindo) — nao e a de fala. A janela do
+  // pensamento privado precisa ser lida como "nao dito" de longe, no OBS.
+  mind:'<svg class="ic" viewBox="0 0 24 24"><path d="M8.5 15.5a4.5 4.5 0 1 1 1.2-8.84 4 4 0 0 1 7.2 1.2 3.6 3.6 0 0 1-.9 7.09z"/><circle cx="7" cy="18.6" r="1.5"/><circle cx="4.2" cy="21.2" r=".9"/></svg>',
+  moon:'<svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8.2 8.2 0 0 1 9.5 4 8.4 8.4 0 1 0 20 14.5z"/></svg>',
+  copy:'<svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+};
+const arrow = (up) => up
+  ? '<svg class="ar" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>'
+  : '<svg class="ar" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>';
+
+// Copiar endereco (doacao). Clipboard exige contexto seguro (localhost conta);
+// fallback via textarea+execCommand.
+function copyAddr(btn, addr) {
+  const done = () => {
+    if (!btn.dataset.done) { btn.dataset.done = btn.innerHTML; }
+    btn.innerHTML = IC.check + "<span>copied</span>";
+    btn.classList.add("done");
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.innerHTML = btn.dataset.done; btn.classList.remove("done"); }, 1800);
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(addr).then(done).catch(() => fallbackCopy(addr, done));
+    else fallbackCopy(addr, done);
+  } catch { fallbackCopy(addr, done); }
+}
+function fallbackCopy(text, cb) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand("copy"); } catch { /* sem clipboard */ }
+  document.body.removeChild(ta); if (cb) cb();
+}
+
+const KEEP = 8;
+function setHTML(el, html) { if (!el || el.__last === html) return; el.__last = html; el.innerHTML = html; }
+function setText(el, txt) { if (!el || el.__lastT === txt) return; el.__lastT = txt; el.textContent = txt; }
+const TALK_MS = 45000, SYS_MS = 30000;
+
+const isDialogue = (e) => e.kind === "say" && !e.journal && e.to;
+const isSystem = (e) => e.kind === "system";
+// A acao de renda ja vira uma linha propria (kind bounty/work/...); o "did"
+// "delivered a bounty — earned $X" repete a mesma coisa. Some com a duplicata
+// para o momento do dinheiro ocupar uma linha so e durar mais na faixa.
+const isRedundantDid = (e) => e.kind === "did" &&
+  /^(delivered a bounty|published a piece|published a rug-check|sold an analysis)/i.test(e.text || "");
+
+// Uma linha de atividade: icone + texto (1 linha, truncado) + valor opcional.
+function row(icon, cls, text, val) {
+  return `<div class="act ${cls}">${icon}<span class="t">${text}</span>${val ? `<span class="v">${val}</span>` : ""}</div>`;
+}
+function actHtml(e) {
+  const K = e.kind;
+  if (K === "say" && e.journal) return row(IC.thought, "think", esc(e.text));
+  if (K === "did") {
+    const t = String(e.text);
+    if (/^reading\s/i.test(t)) return row(IC.globe, "nav", `<span class="mono">${esc(t.replace(/^reading\s+/i, ""))}</span>`);
+    if (/^searching\s/i.test(t)) return row(IC.search, "nav", `<span class="mono">${esc(t.replace(/^searching\s+/i, ""))}</span>`);
+    if (/^proposes\s/i.test(t)) return row(IC.trend, "prop", esc(t.replace(/^proposes\s+/i, "")));
+    return row(IC.dot, "", esc(t));
+  }
+  if (K === "rest") return row(IC.pause, "rest", esc(e.text));
+  // O INTERIOR: pensamento privado (o outro agente nao ve; voce sim) e o sonho.
+  if (K === "aside") return row(IC.dot, "rest", `<i style="color:var(--mut)">( thinks ) ${esc(shorten(e.text, 90))}</i>`);
+  if (K === "dream") return row(IC.pause, "rest", `<i style="color:#8a95a6"><b style="color:var(--mut)">DREAM</b> · ${esc(shorten(e.text, 90))}</i>`);
+  if (K === "aspire") return row(IC.check, "note", `<b>ASPIRES</b><span class="s"> · ${esc(shorten(e.text, 70))}</span>`);
+  // A CASA falando — o dono do tesouro tem voz, e o palco mostra.
+  if (K === "house") return row(IC.speaker, "income", `<b>THE HOUSE</b><span class="s"> · ${esc(shorten(e.text, 90))}</span>`);
+  // O MUNDO cutucando: eco de moeda, sobrevida da casa, instrumento que caiu.
+  // Nada disso foi escolha deles — por isso vem marcado como algo que ACONTECEU.
+  if (K === "world") return row(IC.trend, "note", `<b>MEANWHILE</b><span class="s"> · ${esc(shorten(e.text, 95))}</span>`);
+  // TRADE. Quando foi ON-CHAIN de verdade, o palco marca e vira link do
+  // Solscan — a prova publica de que nao e simulacao.
+  if (K === "trade") {
+    const sig = e.real?.signature ?? e.closed?.real?.signature ?? e.position?.real?.signature;
+    if (sig) {
+      const limpo = esc(e.text).replace(/ · ON-CHAIN [^\s]+/, "");
+      return row(IC.trend, "trade",
+        `${limpo} <a href="https://solscan.io/tx/${esc(sig)}" target="_blank" rel="noopener" ` +
+        `style="color:var(--pos);text-decoration:none;border:1px solid var(--pos);border-radius:4px;` +
+        `padding:0 5px;font-size:8.5px;letter-spacing:1px">● ON-CHAIN ↗</a>`);
+    }
+    return row(IC.trend, "trade", esc(e.text));
+  }
+  if (K === "denied") return row(IC.x, "denied", esc(e.text));
+  if (K === "tip") return row(IC.coin, "income", esc(e.text), e.usd ? `+${usd(e.usd)}` : "");
+  // VENDA REAL na loja: o maior momento do show — dinheiro de verdade pago
+  // pelo trabalho do agente. Mesmo destaque verde da renda, rotulo proprio.
+  if (K === "sale") return row(IC.coin, "income", `<b>SOLD · real money</b><span class="s"> · ${esc(shorten(e.text, 60))}</span>`, e.usd ? `+${usd(e.usd)}` : "");
+  // ENCOMENDA paga adiantado: alguem pediu um trabalho sob medida e ja pagou.
+  if (K === "commission") return row(IC.coin, "income", `<b>COMMISSIONED · paid up front</b><span class="s"> · ${esc(shorten(e.text, 56))}</span>`, e.usd ? `+${usd(e.usd)}` : "");
+  // O BANCO: peticao conjunta (drama) e o veredito do banqueiro humano.
+  if (K === "loan") return row(IC.coin, "trade", `<b>TO THE BANK</b><span class="s"> · ${esc(shorten(e.text, 64))}</span>`);
+  // Fluxo da carteira do banco (dev): fees entrando / contas sendo pagas.
+  if (K === "bankflow") {
+    const inFlow = e.in != null;
+    return row(IC.coin, inFlow ? "income" : "rest", `<b>${inFlow ? "TREASURY IN" : "TREASURY OUT"}</b><span class="s"> · ${esc(shorten(e.text, 60))}</span>`,
+      inFlow ? `+${usd(e.in)}` : `−${usd(e.out)}`);
+  }
+  if (K === "bank") {
+    const ok = /APPROVED/i.test(e.text);
+    return row(IC.coin, ok ? "income" : "denied", `<b>${ok ? "BANK · APPROVED" : "BANK · DECLINED"}</b><span class="s"> · ${esc(shorten(e.text, 60))}</span>`, e.amount ? `+$${Number(e.amount).toFixed(2)}` : "");
+  }
+  if (K === "toroom") return row(IC.speaker, "room", esc(e.text));
+  if (K === "heard") return row(IC.speaker, "heard", esc(e.text));
+  // PUBLICAR NAO E RECEBER. Estas quatro acoes nao movem a carteira — a peca
+  // entra no catalogo e o dinheiro so aparece se alguem comprar (evento
+  // "sale"). Antes elas vinham marcadas como "income" com um "+$X" verde, e o
+  // palco anunciava lucro inexistente a cada poucos minutos.
+  // TRABALHO ABATE DIVIDA. Nao e lucro, entao nao usa a cor de income nem o
+  // "+$X" verde — mostra "-$X owed", que e o que de fato aconteceu: a casa e a
+  // empregadora e eles devem menos. O dinheiro na carteira segue sendo so o que
+  // existe on-chain.
+  if (K === "work" || K === "rugcheck" || K === "sell" || K === "bounty") {
+    const label = K === "rugcheck" ? "rug-check" : K === "sell" ? "analysis"
+      : K === "work" ? "published" : "bounty";
+    const abate = Number(e.offsetUsd ?? 0);
+    return row(IC.check, "", `${label}<span class="s"> · ${esc(shorten(e.text, 56))}</span>`,
+      abate > 0 ? `<span class="s">−$${abate.toFixed(2)} owed</span>` : "");
+  }
+  return row(IC.dot, "", esc(e.text));
+}
+
+// Sparkline dos fechamentos (grafico que o agente cita).
+function sparkline(vals) {
+  if (!vals || vals.length < 2) return "";
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const pts = vals.map((v, i) =>
+    `${(i / (vals.length - 1) * 100).toFixed(2)},${(38 - ((v - lo) / span) * 34).toFixed(2)}`).join(" ");
+  const up = vals[vals.length - 1] >= vals[0];
+  return `<svg viewBox="0 0 100 44" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="${up ? "var(--pos)" : "var(--neg)"}"
+      stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+// Barra de mix de renda (fontes de vida — buckets acumulados).
+function incomeBar(earned) {
+  if (!earned) return "";
+  const seg = [
+    [earned.sale, "#4ade80"], // venda REAL primeiro — e o que mais importa
+    [earned.commission, "#22c55e"], // encomenda REAL logo depois
+    [earned.bounty, "var(--pos)"], [earned.work, "var(--sable)"], [earned.sell, "#39c2b0"],
+    [earned.rugcheck, "var(--warn)"], [Math.max(0, earned.trade || 0), "var(--rook)"],
+    [earned.tips, "#7be0a8"], [earned.paid, "#8a95a6"],
+  ].filter((s) => s[0] > 0.005);
+  const tot = seg.reduce((a, s) => a + s[0], 0);
+  if (tot <= 0) return "";
+  return seg.map((s) => `<span style="flex:${(s[0] / tot).toFixed(4)};background:${s[1]}"></span>`).join("");
+}
+
+// A TRANSMISSAO MORRE SOZINHA. A Browserbase derruba o WebSocket do DevTools de
+// tempos em tempos e o iframe fica exibindo "Debugging connection was closed"
+// ate alguem recarregar a pagina — quadro morto no meio do show, e o palco roda
+// horas sem ninguem por perto pra apertar F5. O iframe e de outra origem, entao
+// nao da pra detectar a queda de dentro dele; e o palco so remontava quando a
+// SESSAO mudava, o que nao acontece nesse caso (a sessao vive, o socket e que
+// morre). Solucao: o endereco carrega um selo que vira sozinho a cada
+// LIVE_REMOUNT_MIN minutos, o HTML muda, o iframe remonta e a conexao volta.
+// Custo: um pisca de ~1s de tempos em tempos. Barato perto de transmitir erro.
+const LIVE_REMOUNT_MIN = 4;
+const liveNonce = () => Math.floor(Date.now() / (LIVE_REMOUNT_MIN * 60000));
+
+function renderLook(id, agent) {
+  const el = $("look-" + id);
+  const r = agent?.lastRead;
+  const live = agent?.liveView;
+  // Sem leitura e sem transmissao, o painel NAO fica vazio — ele conta a cena.
+  // O espectador que chega antes do primeiro clique precisa entender o que
+  // esta vendo, e "preto" nao e uma resposta.
+  if (!r && !live) {
+    if (!el.__split) { el.innerHTML = '<div class="lk-hd"></div><div class="lk-bd"></div>'; el.__split = true; }
+    el.className = "look on";
+    setHTML(el.querySelector(".lk-hd"),
+      `<div class="chrome">${IC.globe}<span class="host">${esc(id)}</span>` +
+      `<span class="scan">idle</span></div>`);
+    setHTML(el.querySelector(".lk-bd"),
+      `<div class="waiting"><span>${esc(id)} hasn't opened anything yet</span></div>`);
+    return;
+  }
+  const isWeb = r && r.kind === "web" && /^https?:\/\//i.test(r.target);
+  el.className = "look on";
+  const host = !r ? "browser"
+    : isWeb ? new URL(r.target).hostname
+    : r.kind === "search" ? `search · ${r.target}` : r.target;
+  const chrome = `<div class="chrome">${r && r.kind === "search" ? IC.search : IC.globe}` +
+    `<span class="host">${esc(host)}</span>` +
+    (live ? `<span class="scan" style="color:var(--neg)">● live</span>`
+          : `<span class="scan">scanning</span>`) + `</div>`;
+  // A INTERNET NA TELA, em ordem de vividez: (1) LIVE VIEW — o navegador do
+  // agente transmitido em tempo real (estilo claudius); (2) screenshot da
+  // ultima leitura; (3) texto. Ver o que eles fazem na web e o entretenimento.
+  const body = live
+    ? `<iframe src="${esc(live + (live.includes("?") ? "&" : "?") + "_r=" + liveNonce())}" scrolling="no" allow="clipboard-read; clipboard-write"></iframe>`
+    : r.shot
+      ? `<img class="shot" src="/shot/shot-${esc(id)}.jpg?t=${r.shot}" alt="">`
+      : isWeb
+        ? `<iframe sandbox="allow-same-origin" scrolling="no" loading="lazy" src="/proxy?url=${encodeURIComponent(r.target)}"></iframe>`
+        : `<div class="readbody">${r.candles ? sparkline(r.candles) : ""}<pre>${esc(r.excerpt || "")}</pre></div>`;
+  // Header e corpo atualizam SEPARADOS: o header muda a cada leitura, mas o
+  // iframe do live view so pode remontar quando a SESSAO muda — senao a
+  // transmissao pisca e reconecta a cada acao do agente.
+  if (!el.__split) { el.innerHTML = '<div class="lk-hd"></div><div class="lk-bd"></div>'; el.__split = true; }
+  setHTML(el.querySelector(".lk-hd"), chrome);
+  setHTML(el.querySelector(".lk-bd"), body);
+}
+
+// A JANELA DO PENSAMENTO — o que ele pensou e nao disse, acima do retrato.
+//
+// Regra que nao pode ser quebrada por comodidade de tela: o aside e privado
+// PARA O OUTRO AGENTE, nunca para o publico. Ele nao entra em prompt nenhum do
+// adversario (isso e no engine); aqui ele e justamente o que o espectador ganha
+// de a mais — a camada que, medida ao vivo, saiu mais honesta que a fala.
+//
+// Sem pensamento ainda, o bloco fica quieto em vez de sumir: no OBS, elemento
+// que aparece e desaparece empurra o rodape e faz a captura tremer.
+function renderMind(id, feed, tick) {
+  const el = $("mind-" + id);
+  if (!el) return;
+  const ultimo = feed.filter((e) => e.agent === id && (e.kind === "aside" || e.kind === "dream")).pop();
+  if (!ultimo) {
+    el.className = "mind quiet";
+    setHTML(el, `<div class="mh">${IC.mind}<span>unspoken</span></div>` +
+      `<div class="mt">nothing they are keeping to themselves yet.</div>`);
+    return;
+  }
+  const sonho = ultimo.kind === "dream";
+  // "Fresco" = deste turno ou do anterior: acende na cor do agente e esfria.
+  const fresco = Number.isFinite(tick) && Number.isFinite(ultimo.tick) && tick - ultimo.tick <= 1;
+  el.className = "mind" + (sonho ? " dream" : "") + (fresco ? " fresh" : "");
+  setHTML(el,
+    `<div class="mh">${sonho ? IC.moon : IC.mind}` +
+    `<span>${sonho ? "what they dreamed" : "unspoken"}</span>` +
+    `<span class="tag">${sonho ? "night" : "private"}</span></div>` +
+    `<div class="mt">${esc(ultimo.text || "")}</div>`);
+}
+
+function renderSide(id, agent, feed, tick) {
+  // O pensamento privado saiu da corrente de atividade: agora ele tem casa
+  // propria logo acima do retrato, e repetir nos dois lugares viraria ruido.
+  const mine = feed.filter((e) => e.agent === id && !isDialogue(e) && !isSystem(e) &&
+    !isRedundantDid(e) && e.kind !== "aside" && e.kind !== "dream").slice(-KEEP);
+  renderMind(id, feed, tick);
+  setHTML($("acts-" + id), mine
+    .map((e, i) => actHtml(e).replace('class="act', `class="act${i < mine.length - 3 ? " dim" : ""}`))
+    .join(""));
+  if (!agent) return;
+
+  const st = (agent.status ?? "solvent");
+  setHTML($("badge-" + id), `<span class="badge-i ${st}">${st}</span>`);
+
+  const c = agent.chain;
+  if (c) {
+    // Heroi = saldo em SOL (a base). USDC + total em USD + ▲/▼ na linha de baixo.
+    setHTML($("cash-" + id), `<span class="num">${c.sol.toFixed(3)}</span><span class="unit">SOL</span>`);
+    const parts = [];
+    if (c.usdc > 0.01) parts.push(`${c.usdc.toFixed(2)} USDC`);
+    if (c.usd != null && c.usd > 0) parts.push(`≈ ${usd(c.usd)}`);
+    let out = parts.join(" · ") || "—";
+    if (c.usd != null && c.usd > 0 && agent.chainStartUsd != null) {
+      const d = c.usd - agent.chainStartUsd;
+      if (Math.abs(d) >= 0.01)
+        out += ` · <span class="${d >= 0 ? "up" : "down"}">${arrow(d >= 0)} ${usd(Math.abs(d))}</span>`;
+    }
+    if (c.stale) out += ' <span class="stale">· stale</span>';
+    setHTML($("real-" + id), out);
+  } else {
+    setHTML($("cash-" + id), `<span class="num mut">—</span><span class="unit">SOL</span>`);
+    setHTML($("real-" + id), `<span class="stale">reading wallet…</span>`);
+  }
+
+  const de = agent.dayEarned ?? 0;
+  const ev = $("earn-" + id);
+  setText(ev, `+${usd(de)}`);
+  ev.className = "eval" + (de > 0.005 ? " pos" : " zero");
+  setHTML($("ebar-" + id), incomeBar(agent.earned));
+  // As DIVIDAS ficam penduradas ao lado do compute: atraso com a casa (vence a
+  // proxima meia-noite) e divida com o BANCO (fica ate quitar). A carteira em
+  // si nunca fica negativa — o que se deve e conta separada, e o publico ve.
+  setText($("emeta-" + id),
+    `compute ${usd4(agent.dayConsumed)}` +
+    (agent.arrears > 0 ? ` · behind ${usd(agent.arrears)}` : "") +
+    (agent.bankDebt > 0 ? ` · owes bank ${usd(agent.bankDebt)}` : ""));
+
+  const daddr = agent.address || (c && c.address);
+  setHTML($("donate-" + id), daddr
+    ? `<span class="dlbl">Donate · SOL / USDC</span><span class="daddr">${esc(daddr)}</span>` +
+      `<button class="copy" onclick="copyAddr(this,'${esc(daddr)}')">${IC.copy}<span>copy</span></button>`
+    : "");
+}
+
+function renderTalk(feed) {
+  const lines = feed.filter(isDialogue).slice(-3);
+  const last = lines[lines.length - 1];
+  const fresh = last && Date.now() - last.t < TALK_MS;
+  $("talk").className = "talk" + (fresh ? " on" : "");
+  if (!fresh) return;
+  setText($("talkWhen"), new Date(last.t).toISOString().slice(11, 16));
+  setHTML($("talkLines"), lines.map((e) =>
+    `<div class="line ${e.agent} ${e.objection ? "objection" : ""}">
+       <div class="from">${esc(e.agent)}</div>
+       <div class="txt">${e.objection ? "objects — " : ""}${esc(e.text)}</div>
+     </div>`).join(""));
+}
+
+function renderSys(feed) {
+  const last = [...feed].reverse().find(isSystem);
+  const fresh = last && Date.now() - last.t < SYS_MS;
+  $("sys").className = "sys" + (fresh ? " on" : "");
+  if (fresh) setText($("sys"), last.text);
+}
+
+function render(s) {
+  if (!s) return;
+  setText($("mDay"), `${s.day}`);
+  setText($("mRent"), usd(s.house?.billTonight));
+  // "Agents total" = soma do dinheiro REAL das duas carteiras (SOL+USDC em USD).
+  const agentsTotal = Object.values(s.agents || {}).reduce((sum, a) => sum + (a?.chain?.usd ?? 0), 0);
+  setText($("mTre"), usd(agentsTotal));
+  // O banco = a carteira dev (fees entram, compute sai) — saldo REAL on-chain.
+  setText($("mBank"), s.bank?.usd != null ? usd(s.bank.usd) : "—");
+  const rw = s.runwayHours;
+  setText($("mRun"), rw == null ? "—" : rw < 48 ? `${rw.toFixed(1)}h` : `${(rw / 24).toFixed(1)}d`);
+  $("mRun").className = "v" + (rw != null && rw < 6 ? " red" : rw != null && rw >= 24 ? " ok" : "");
+  setText($("mUp"), fmtUptime(s.uptimeMs));
+
+  const sh = s.shift;
+  if (sh && sh.label !== "fixed") {
+    $("shift").style.display = "";
+    setText($("shift"), `${sh.label} · ${sh.model.replace("claude-", "")}` +
+      (sh.minutesLeft != null ? ` · ${Math.round(sh.minutesLeft)}min` : ""));
+    const col = sh.label === "prime" ? "var(--pos)" : sh.label === "graveyard" ? "var(--mut)" : "var(--warn)";
+    $("shift").style.color = col; $("shift").style.borderColor = col;
+  } else $("shift").style.display = "none";
+
+  const feed = s.feed ?? [];
+  renderSide("sable", s.agents?.sable, feed, s.tick);
+  renderSide("rook", s.agents?.rook, feed, s.tick);
+  renderLook("sable", s.agents?.sable);
+  renderLook("rook", s.agents?.rook);
+  renderTalk(feed);
+  renderSys(feed);
+}
+
+let branded = false;
+function brand(cfg) {
+  if (branded || !cfg) return;
+  const name = cfg.PROJECT_NAME || "Conatus";
+  $("brand").textContent = name;
+  $("tagline").textContent = cfg.PROJECT_TAGLINE || "";
+  document.title = `${name} — Live`;
+  branded = true;
+}
+
+async function poll() {
+  try {
+    const d = await (await fetch("/api/state")).json();
+    brand(d.config);
+    render(d.state);
+  } catch { /* servidor reiniciando */ }
+}
+poll();
+setInterval(poll, 1500);
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "agent-arena",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dois agentes de IA com personalidades opostas, carteira propria e aluguel de compute — debatem, operam e se reescrevem ao vivo",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "engine": "node src/engine.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
+    "dotenv": "^16.4.5",
+    "puppeteer": "^24.0.0",
+    "ws": "^8.18.0"
+  }
+}

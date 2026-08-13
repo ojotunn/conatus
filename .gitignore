@@ -1,0 +1,19 @@
+# SEGREDOS — nunca sobem. As chaves vivem no .env local e nas env vars do Railway.
+# O padrao cobre backups e variantes (.env.bak, .env.local, .env.old): o .env.bak
+# tinha a chave da Anthropic e as DUAS keypairs privadas dos agentes, e so o
+# ".env" pelado nao o pegava (13/08/2026, na vespera do primeiro push).
+.env
+.env.*
+!.env.example
+
+# Runtime — dados vivos do show (no Railway moram no VOLUME, nao no repo):
+# estado, catalogo/compras da loja, decisoes do banco, screenshots, e os
+# PERFIS DE NAVEGADOR dos agentes (cookies/sessoes logadas — sensivel).
+src/data/
+
+# Dependencias
+node_modules/
+
+# Lixo local
+*.log
+scripts/probe-apos-clique.jpg

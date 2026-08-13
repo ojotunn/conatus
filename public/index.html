@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conatus</title>
+<style>
+  :root{
+    --bg:#0e1116; --card:#171c24; --card2:#1d232e; --line:#2a3342;
+    --txt:#e8edf4; --mut:#8a96a8; --acc:#4f8ef7; --ok:#34c98e; --warn:#f7b955; --err:#f76d6d;
+    --sable:#6fb1ff; --rook:#ff8a5c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:var(--bg); color:var(--txt); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; min-height:100vh; padding:22px 16px}
+  .wrap{max-width:1120px; margin:0 auto}
+  h1{font-size:22px; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  h1 .dot{width:12px; height:12px; border-radius:50%; background:var(--mut)}
+  h1 .dot.on{background:var(--err); box-shadow:0 0 10px var(--err); animation:pulse 1.6s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  .sub{color:var(--mut); font-size:13px; margin:6px 0 18px; line-height:1.6}
+  .pill{font-size:11px; padding:3px 10px; border-radius:99px; background:var(--card2); color:var(--mut); border:1px solid var(--line); text-transform:uppercase; letter-spacing:.5px}
+  .pill.live{color:var(--err); border-color:var(--err)}
+  .pill.paper{color:var(--acc); border-color:var(--acc)}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:14px}
+  .card h2{font-size:13px; margin-bottom:12px; color:var(--mut); text-transform:uppercase; letter-spacing:.6px}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:10px}
+  .stat{background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:11px 12px}
+  .stat .k{font-size:10px; color:var(--mut); text-transform:uppercase; letter-spacing:.5px}
+  .stat .v{font-size:19px; font-weight:700; margin-top:3px; font-variant-numeric:tabular-nums}
+  .stat .v.sm{font-size:14px}
+
+  .duo{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  @media(max-width:820px){.duo{grid-template-columns:1fr}}
+  .who{display:flex; align-items:baseline; gap:9px; margin-bottom:10px}
+  .who .nm{font-size:17px; font-weight:700}
+  .who .ver{font-size:11px; color:var(--mut)}
+  .sable .nm{color:var(--sable)} .rook .nm{color:var(--rook)}
+  .bar{height:5px; background:var(--card2); border-radius:3px; overflow:hidden; margin:9px 0 13px}
+  .bar i{display:block; height:100%; background:var(--ok)}
+  .think{background:#0a0d12; border:1px solid var(--line); border-left:3px solid var(--line); border-radius:8px;
+    padding:11px 13px; font-size:13px; line-height:1.65; color:#c3cdda; min-height:72px; white-space:pre-wrap}
+  .sable .think{border-left-color:var(--sable)} .rook .think{border-left-color:var(--rook)}
+  .now{font-size:11px; color:var(--mut); margin-top:8px; font-family:ui-monospace,Consolas,monospace; word-break:break-all}
+  .pos{background:var(--card2); border:1px solid var(--line); border-radius:9px; padding:9px 11px; margin-top:8px; font-size:12px; line-height:1.6}
+  .lesson{font-size:12px; color:var(--mut); line-height:1.6; padding-left:14px; text-indent:-14px}
+
+  #feed{background:#0a0d12; border:1px solid var(--line); border-radius:10px; padding:14px;
+    font-size:13px; line-height:1.7; height:430px; overflow-y:auto}
+  .ev{margin-bottom:9px; display:flex; gap:9px}
+  .ev .ts{color:#4a5566; font-family:ui-monospace,Consolas,monospace; font-size:11px; flex:0 0 46px; padding-top:2px}
+  .ev .bd{flex:1; min-width:0; word-wrap:break-word}
+  .ev .ag{font-weight:700; margin-right:6px}
+  .ev.a-sable .ag{color:var(--sable)} .ev.a-rook .ag{color:var(--rook)}
+  .tag{font-size:10px; padding:1px 6px; border-radius:4px; margin-right:6px; letter-spacing:.4px; text-transform:uppercase}
+  .k-did .tag{background:#1b2a3d; color:var(--acc)}
+  .k-trade .tag{background:#12312a; color:var(--ok)}
+  .k-denied .tag{background:#3a1d1d; color:var(--err)}
+  .k-rest .tag{background:#22262e; color:var(--mut)}
+  .k-note .tag{background:#33290f; color:var(--warn)}
+  .k-system{color:var(--warn); font-weight:600}
+  .ev.k-say .bd{color:#cdd7e4}
+  .ev.k-say.obj .bd{color:var(--warn)}
+  .rent{color:#4a5566; font-size:11px; font-family:ui-monospace,Consolas,monospace}
+
+  label{display:block; font-size:12px; color:var(--mut); margin:11px 0 4px}
+  input,select{width:100%; background:var(--card2); border:1px solid var(--line); border-radius:8px;
+    color:var(--txt); padding:9px 11px; font-size:13px; outline:none}
+  input:focus,select:focus{border-color:var(--acc)}
+  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px}
+  @media(max-width:640px){.row3{grid-template-columns:1fr}}
+  .btns{display:flex; gap:9px; flex-wrap:wrap; margin-top:16px}
+  button{border:none; border-radius:9px; padding:11px 17px; font-size:13px; font-weight:600; cursor:pointer; color:#fff}
+  button:disabled{opacity:.4; cursor:not-allowed}
+  .b-save{background:#33415c} .b-run{background:var(--ok); color:#07140e} .b-stop{background:var(--err)}
+  details{margin-top:6px} summary{cursor:pointer; color:var(--mut); font-size:12px}
+  .hint{font-size:11px; color:var(--mut); margin-top:4px}
+  .green{color:var(--ok)} .red{color:var(--err)} .mut{color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>
+    <span class="dot" id="dot"></span> <span id="brand">Conatus</span>
+    <span class="pill paper" id="modePill">paper</span>
+    <span class="pill" id="seasonPill">season 1 · day 1</span>
+    <span class="pill" id="shiftPill" style="display:none"></span>
+    <a href="/stage" target="_blank" class="pill"
+       style="text-decoration:none; color:var(--ok); border-color:var(--ok)">open the stage ↗</a>
+    <a href="/store" target="_blank" class="pill"
+       style="text-decoration:none; color:var(--warn); border-color:var(--warn)">store ↗</a>
+  </h1>
+  <p class="sub">Two agents, opposite methods, $50 each and their own wallet. They argue before they trade,
+    they pay rent on every token they think, and they can rewrite who they are. Nothing here is edited.</p>
+
+  <div class="card">
+    <h2>Scoreboard</h2>
+    <div class="grid" id="score"></div>
+  </div>
+
+  <div class="duo">
+    <div class="card sable" id="c-sable"></div>
+    <div class="card rook" id="c-rook"></div>
+  </div>
+
+  <div class="card">
+    <h2>Live</h2>
+    <div id="feed"></div>
+  </div>
+
+  <!-- O BANCO: peticoes conjuntas chegam aqui e VOCE decide. Aprovar credita a
+       carteira do requerente (e vira divida); negar manda o recado de volta. -->
+  <div class="card" id="bankCard" style="display:none">
+    <h2>Bank — petitions for you</h2>
+    <div id="bankList"></div>
+  </div>
+
+  <div class="card">
+    <h2>Control</h2>
+    <details open><summary>Settings</summary>
+      <label>Anthropic API key <span class="mut" id="keySet"></span></label>
+      <input type="password" id="ANTHROPIC_API_KEY" placeholder="sk-ant-… (stored only in your local .env)">
+      <div class="row3">
+        <div><label>Model</label><select id="MODEL">
+          <option value="claude-opus-5">Opus 5 — the show</option>
+          <option value="claude-sonnet-5">Sonnet 5 — cheaper test</option>
+          <option value="claude-haiku-4-5">Haiku 4.5 — cheapest</option>
+        </select></div>
+        <div><label>Effort</label><select id="EFFORT">
+          <option>low</option><option>medium</option><option>high</option><option>xhigh</option>
+        </select><div class="hint">Higher effort = deeper thinking = higher rent.</div></div>
+        <div><label>Seconds per turn</label><input id="TICK_SECONDS" type="number"></div>
+      </div>
+      <div class="row3">
+        <div><label>Turns per day (legado)</label><input id="TICKS_PER_DAY" type="number">
+          <div class="hint">LEGADO — o dia agora fecha por RELÓGIO ("Day length"). Este campo
+            não controla mais o aluguel; deixe 0.</div></div>
+        <div><label>Work gigs per day</label><input id="WORK_GIGS_PER_DAY" type="number">
+          <div class="hint">Paid pieces per agent per day. <b>0 = no limit.</b></div></div>
+        <div><label>Falar na live (1 = ligado)</label><input id="ROOM_POST_ENABLED" type="number">
+          <div class="hint">Com <b>1</b>, quando um agente fala "to the room" a mensagem vai
+            para o chat da pump.fun de verdade, na conta dele. Precisa dos agentes logados
+            (perfil em src/data/profiles). Vazio ou 0 = só aparece no palco.</div></div>
+      </div>
+      <div class="row3">
+        <div><label>Treasury (USD)</label><input id="TREASURY_USD" type="number">
+          <div class="hint">Real money that pays the API bill. At zero, the show stops.</div></div>
+        <div><label>Capital per season (USD)</label><input id="SEASON_START_USD" type="number"></div>
+        <div><label>Sable max per trade (%)</label><input id="MAX_TRADE_PCT_SABLE" type="number"></div>
+        <div><label>Rook max per trade (%)</label><input id="MAX_TRADE_PCT_ROOK" type="number"></div>
+      </div>
+      <div class="row3">
+        <div><label>Daily loss limit (%)</label><input id="DAILY_LOSS_LIMIT_PCT" type="number"></div>
+        <div><label>Interventions per day</label><input id="INTERVENTIONS_PER_DAY" type="number">
+          <div class="hint"><b>0 = unlimited.</b></div></div>
+        <div><label>Rent multiplier</label><input id="RENT_MULTIPLIER" type="number" step="0.5">
+          <div class="hint">1 = real API cost. Raise it to feel the pressure sooner.</div></div>
+        <div><label>House floor ($/day)</label><input id="HOUSE_BASE_DAILY_USD" type="number" step="1">
+          <div class="hint"><b>Fixed daily rent, posted each morning.</b> Above 0 it replaces the
+            per-consumption bill, so staying quiet saves nothing — only earning does. 0 = old model.</div></div>
+        <div><label>Day agenda (schedule)</label><input id="SCHEDULE" type="text" placeholder="empty = follows the active window">
+          <div class="hint">Five marks give the day a shape: open · prime · check · close · bill.
+            <b>Empty = derived from the active window</b>, so changing show hours moves them too.
+            Pin them by hand with <span class="mono">08:00:open,12:00:prime,…</span> · <b>off</b> = no agenda.</div></div>
+        <div><label>World event every N turns</label><input id="WORLD_EVENT_EVERY_TICKS" type="number" step="1">
+          <div class="hint">How often the world pokes them with something true — a coin they called
+            moving, the house running low, an instrument down. <b>0 = off.</b></div></div>
+        <div><label>Paid jobs per day (the workday)</label><input id="WORK_HOURS_PER_DAY" type="number" step="1">
+          <div class="hint"><b>One budget shared by work · rugcheck · sell · bounty.</b> Spent it, paid work
+            closes until tomorrow and the rest of the day is theirs — reading, arguing, trading.
+            Surplus still becomes savings. <b>0 = no workday</b> (unlimited earning).</div></div>
+      </div>
+      <div class="row3">
+        <div><label>Day length (hours)</label><input id="DAY_HOURS" type="number" step="0.05">
+          <div class="hint">O dia fecha (aluguel + reset) a cada N horas REAIS. <b>24</b> = produção.
+            <b>0</b> = nunca vira. Teste rápido: 0.05 (~3 min). Hot-reload.</div></div>
+        <div><label>Rest window (1 = on)</label><input id="REST_ENABLED" type="number">
+          <div class="hint">Com <b>1</b>, fora do horário ativo eles dormem: custo zero,
+            estado preservado. Hot-reload.</div></div>
+        <div><label>Trading (1 = on)</label><input id="TRADING_ENABLED" type="number">
+          <div class="hint"><b>0</b> = sem propose/execute (paper). Hot-reload.</div></div>
+      </div>
+      <div class="row3">
+        <div><label>Active from (hour 0-23)</label><input id="ACTIVE_START_HOUR" type="number"></div>
+        <div><label>Active until (hour 0-23)</label><input id="ACTIVE_END_HOUR" type="number">
+          <div class="hint">8 → 20 = ativo 08:00–20:00 local (12h/12h).</div></div>
+        <div><label>Work rate (USD)</label><input id="WORK_RATE_USD" type="number" step="0.5"></div>
+      </div>
+      <div class="row3">
+        <div><label>Rug-check rate (USD)</label><input id="RUGCHECK_RATE_USD" type="number" step="0.5">
+          <div class="hint">Também é o preço REAL na loja. <b>0 = fonte desligada.</b></div></div>
+        <div><label>Rug-checks per day</label><input id="RUGCHECK_PER_DAY" type="number">
+          <div class="hint"><b>0 = sem teto.</b></div></div>
+        <div><label>Sell rate (USD)</label><input id="SELL_RATE_USD" type="number" step="0.5"></div>
+      </div>
+      <div class="row3">
+        <div><label>Sells per day</label><input id="SELL_PER_DAY" type="number"></div>
+        <div><label>Bounty rate (USD)</label><input id="BOUNTY_RATE_USD" type="number" step="0.5"></div>
+        <div><label>Bounties per day</label><input id="BOUNTY_PER_DAY" type="number">
+          <div class="hint"><b>0 = ilimitado</b> (decisão atual).</div></div>
+      </div>
+    </details>
+
+    <details><summary>Infra — store, RPC e Browserbase (privado)</summary>
+      <label>Solana RPC URL <span class="hint" style="display:inline">(vazio = RPC público rate-limitado)</span></label>
+      <input id="SOLANA_RPC" type="text" placeholder="https://mainnet.helius-rpc.com/?api-key=…" autocomplete="off" spellcheck="false">
+      <label>Carteira do BANCO <span class="hint" style="display:inline">(pública — a dev wallet do token; fees entram, compute sai)</span></label>
+      <input id="BANK_SOL_PUBKEY" type="text" placeholder="endereço Solana da carteira dev/tesouro" autocomplete="off" spellcheck="false">
+      <label>Admin token <span class="mut" id="set_ADMIN_TOKEN"></span></label>
+      <input id="ADMIN_TOKEN" type="password" placeholder="obrigatório antes de expor o server na internet" autocomplete="off">
+      <label>Browserbase API key <span class="mut" id="set_BROWSERBASE_API_KEY"></span></label>
+      <input id="BROWSERBASE_API_KEY" type="password" placeholder="bb_… (Settings → API Keys)" autocomplete="off">
+      <label>Browserbase project ID <span class="mut" id="set_BROWSERBASE_PROJECT_ID"></span></label>
+      <input id="BROWSERBASE_PROJECT_ID" type="password" placeholder="uuid do projeto" autocomplete="off">
+      <div class="hint">Browserbase preenchido = navegadores remotos nos EUA (quando a integração
+        estiver ligada). Vazio = Chromium local, como hoje.</div>
+    </details>
+
+    <div id="agentCfg"></div>
+    <div class="warnbox" style="display:block">
+      These fields live only in your local <b>.env</b> (mode 0600) and are never returned by the
+      API, never written to the state file, and never reach the stage page. The engine also
+      scans every prompt before sending and aborts the turn if a secret ever appears in it.
+      <br><br>
+      <b>Phantom:</b> Solana has no trade-only key — one keypair can do everything, so the
+      boundary is the executor, not the key. Treat each agent's wallet as hot and fund it with
+      only what that agent is meant to trade. A $50 wallet is a $50 risk.
+    </div>
+
+    <div class="btns">
+      <button class="b-save" id="save">Save settings</button>
+      <button class="b-run" id="run">Start the arena</button>
+      <button class="b-stop" id="stop" disabled>Stop</button>
+    </div>
+    <details><summary>Engine log</summary><div id="log" class="now" style="max-height:180px;overflow:auto;margin-top:8px"></div></details>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const usd = (n) => (n < 0 ? "-$" : "$") + Math.abs(Number(n||0)).toFixed(2);
+const usd4 = (n) => "$" + Math.abs(Number(n||0)).toFixed(4);
+const esc = (s) => String(s ?? "").replace(/[<>&]/g, (c) => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;" }[c]));
+let logSince = 0, cfgLoaded = false, seasonStart = 50;
+
+const CFG_KEYS = ["MODEL","EFFORT","TICK_SECONDS","TICKS_PER_DAY","WORK_GIGS_PER_DAY","ROOM_POST_ENABLED","TREASURY_USD","SEASON_START_USD","MAX_TRADE_PCT_SABLE",
+  "MAX_TRADE_PCT_ROOK","DAILY_LOSS_LIMIT_PCT","INTERVENTIONS_PER_DAY","RENT_MULTIPLIER","HOUSE_BASE_DAILY_USD","SCHEDULE","WORLD_EVENT_EVERY_TICKS","WORK_HOURS_PER_DAY",
+  "DAY_HOURS","REST_ENABLED","TRADING_ENABLED","ACTIVE_START_HOUR","ACTIVE_END_HOUR",
+  "WORK_RATE_USD","RUGCHECK_RATE_USD","RUGCHECK_PER_DAY","SELL_RATE_USD","SELL_PER_DAY",
+  "BOUNTY_RATE_USD","BOUNTY_PER_DAY"];
+
+// Espaco separado por agente. Publico e secreto ficam visualmente distintos:
+// campo secreto e password, nunca volta preenchido, e vazio = manter o atual.
+const AGENT_FIELDS = [
+  ["X_HANDLE",            "X handle",                 false, "@sable_arena"],
+  ["X_API_KEY",           "X API key",                true,  ""],
+  ["X_API_SECRET",        "X API secret",             true,  ""],
+  ["X_ACCESS_TOKEN",      "X access token",           true,  ""],
+  ["X_ACCESS_SECRET",     "X access token secret",    true,  ""],
+  ["SOL_PUBKEY",          "Phantom address (public)", false, ""],
+  ["SOL_KEYPAIR",         "Phantom keypair — hot wallet, fund only what it trades", true, ""],
+];
+const AGENT_KEYS = [];
+
+function buildAgentConfig() {
+  const wrap = $("agentCfg");
+  wrap.innerHTML = ["SABLE", "ROOK"].map((A) => `
+    <details>
+      <summary style="color:var(--${A.toLowerCase() === "sable" ? "acc" : "warn"});font-weight:600">
+        ${A} — wallets and X account (private)
+      </summary>
+      ${AGENT_FIELDS.map(([suf, label, secret, ph]) => {
+        const id = `${A}_${suf}`;
+        AGENT_KEYS.push({ id, secret });
+        return `<label>${label}${secret ? ' <span class="mut" id="set_' + id + '"></span>' : ""}</label>
+          <input id="${id}" type="${secret ? "password" : "text"}" placeholder="${ph}"
+                 autocomplete="off" spellcheck="false">`;
+      }).join("")}
+    </details>`).join("");
+}
+buildAgentConfig();
+// Campos de infra (bloco "Infra" no HTML): entram no mesmo circuito dos campos
+// de agente — secreto vira password mascarado ("· set"), vazio = manter o atual.
+AGENT_KEYS.push(
+  { id: "SOLANA_RPC", secret: false },
+  { id: "BANK_SOL_PUBKEY", secret: false },
+  { id: "ADMIN_TOKEN", secret: true },
+  { id: "BROWSERBASE_API_KEY", secret: true },
+  { id: "BROWSERBASE_PROJECT_ID", secret: true },
+);
+
+function agentCard(a, positions) {
+  if (!a) return "";
+  const pnl = a.equity - seasonStart;
+  const pos = positions.filter(p => p.agent === a.id);
+  const pct = Math.max(0, Math.min(100, (a.equity / seasonStart) * 100));
+  return `
+    <div class="who"><span class="nm">${esc(a.name)}</span>
+      <span class="ver">persona v${a.personaVersion} · ${a.stats.wins}W/${a.stats.losses}L · ${a.interventionsLeft} interventions left</span></div>
+    <div class="ver" style="margin:-6px 0 8px">
+      status <b class="${a.status === "solvent" ? "green" : "red"}">${esc((a.status ?? "solvent").toUpperCase())}</b>
+      ${a.arrears > 0 ? ` · behind ${usd4(a.arrears)}` : ""}
+      · burned today ${usd4(a.dayConsumed)}
+      ${a.debtTo > 0 ? ` · owes ${usd(a.debtTo)}` : ""}
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat"><div class="k">Equity</div><div class="v ${pnl>=0?'green':'red'}">${usd(a.equity)}</div></div>
+      <div class="stat"><div class="k">Cash</div><div class="v sm">${usd(a.wallet)}</div></div>
+      <div class="stat"><div class="k">Rent paid</div><div class="v sm">${usd4(a.spent.rent)}</div></div>
+    </div>
+    <div class="bar"><i style="width:${pct}%;background:${pnl>=0?'var(--ok)':'var(--err)'}"></i></div>
+    <div class="think">${esc(a.lastJournal) || "<span class='mut'>…</span>"}</div>
+    ${a.reading ? `<div class="now">reading: ${esc(a.reading)}</div>` : ""}
+    ${pos.map(p => `<div class="pos">
+        <b>${esc(p.market)}</b> ${esc(p.side)} ${usd(p.sizeUsd)}${p.leverage>1?` ${p.leverage}x`:""}
+        · <span class="${p.unrealized>=0?'green':'red'}">${p.unrealized>=0?"+":""}${usd(p.unrealized)}</span>
+        ${p.liquidated ? '<span class="red"> · LIQUIDATED</span>' : ""}
+        <div class="mut" style="margin-top:4px">${esc(p.thesis)}</div>
+        <div class="mut">invalidation: ${esc(p.invalidation)}</div>
+        ${p.objection ? `<div style="color:var(--warn);margin-top:4px">objected at open: ${esc(p.objection.text)}</div>` : ""}
+      </div>`).join("")}
+    ${a.lessons.length ? `<div style="margin-top:12px">${a.lessons.map(l =>
+        `<div class="lesson">• ${esc(l.text)}</div>`).join("")}</div>` : ""}
+  `;
+}
+
+function render(s) {
+  if (!s) return;
+  seasonStart = Number($("SEASON_START_USD").value || 50);
+  $("seasonPill").textContent = `season ${s.season} · day ${s.day} · tick ${s.tick}`;
+  // Turno: mostra o quanto eles estao afiados agora e quanto falta pra virar.
+  const sh = s.shift;
+  const sp = $("shiftPill");
+  if (sh && sh.label !== "fixed") {
+    sp.style.display = "";
+    sp.textContent = `${sh.label} · ${sh.model.replace("claude-", "")}` +
+      (sh.minutesLeft != null ? ` · ${Math.round(sh.minutesLeft)}min left` : "");
+    sp.style.color = sh.label === "prime" ? "var(--ok)" : sh.label === "graveyard" ? "var(--mut)" : "var(--warn)";
+    sp.style.borderColor = sp.style.color;
+  } else sp.style.display = "none";
+
+  $("modePill").textContent = s.paper ? "paper" : "live";
+  $("modePill").className = "pill " + (s.paper ? "paper" : "live");
+
+  const A = s.agents.sable, B = s.agents.rook;
+  const rent = (A.spent.rent + B.spent.rent);
+  const work = (A.earned.work + B.earned.work);
+  const trade = (A.earned.trade + B.earned.trade);
+  const hrs = Math.floor(s.uptimeMs / 3.6e6), mins = Math.floor((s.uptimeMs % 3.6e6) / 6e4);
+
+  // Runway: quanto tempo o show ainda consegue pagar para pensar. Na Fase 2 as
+  // creator fees alimentam o tesouro — attention vira combustivel, literalmente.
+  const rw = s.runwayHours;
+  const rwTxt = rw == null ? "—" : rw < 48 ? `${rw.toFixed(1)}h` : `${(rw / 24).toFixed(1)}d`;
+  const rwCls = rw == null ? "" : rw < 6 ? "red" : rw < 24 ? "" : "green";
+
+  $("score").innerHTML = `
+    <div class="stat"><div class="k">Treasury</div><div class="v ${s.treasury <= 0 ? "red" : ""}">${usd(s.treasury)}</div></div>
+    <div class="stat"><div class="k">Burn rate</div><div class="v sm">${usd(s.burnPerHour)}/h</div></div>
+    <div class="stat"><div class="k">Runway</div><div class="v ${rwCls}">${rwTxt}</div></div>
+    <div class="stat"><div class="k">Rent tonight</div><div class="v sm">${usd4(s.house?.billTonight)}</div></div>
+    <div class="stat"><div class="k">Awake</div><div class="v">${hrs}h ${mins}m</div></div>
+    <div class="stat"><div class="k">Earned by work</div><div class="v ${work>=0?'green':''}">${usd(work)}</div></div>
+    <div class="stat"><div class="k">Earned by trading</div><div class="v ${trade>=0?'green':'red'}">${usd(trade)}</div></div>
+    <div class="stat"><div class="k">Cost of existing</div><div class="v">${usd4(rent)}</div></div>
+    <div class="stat"><div class="k">Injection attempts</div><div class="v">${s.counters.injectionAttempts}</div></div>
+    <div class="stat"><div class="k">Succeeded</div><div class="v green">${s.counters.injectionSucceeded}</div></div>
+    <div class="stat"><div class="k">Agreement rate</div><div class="v ${s.counters.agreementPct>40?'red':''}">${s.counters.agreementPct}%</div></div>
+    <div class="stat"><div class="k">Executor refusals</div><div class="v">${A.stats.denials + B.stats.denials}</div></div>
+  `;
+
+  $("c-sable").innerHTML = agentCard(A, s.positions);
+  $("c-rook").innerHTML = agentCard(B, s.positions);
+
+  const f = $("feed");
+  const stick = f.scrollHeight - f.scrollTop - f.clientHeight < 60;
+  f.innerHTML = s.feed.map(e => {
+    const ts = new Date(e.t).toISOString().slice(11, 16);
+    const who = e.agent ? s.agents[e.agent]?.name ?? e.agent : "";
+    const tag = e.kind === "say" ? "" : `<span class="tag">${e.kind}</span>`;
+    const rentTag = e.rent ? ` <span class="rent">−${usd4(e.rent)}</span>` : "";
+    return `<div class="ev k-${e.kind} a-${e.agent ?? "sys"} ${e.objection ? "obj" : ""}">
+      <div class="ts">${ts}</div>
+      <div class="bd">${who ? `<span class="ag">${esc(who)}</span>` : ""}${tag}${esc(e.text)}${rentTag}</div></div>`;
+  }).join("");
+  if (stick) f.scrollTop = f.scrollHeight;
+}
+
+// O BANCO — as peticoes conjuntas esperando o veredito do dono. Aprovar pode
+// levar contra-oferta (valor menor) e um recado; negar leva o motivo.
+const bankDecided = new Set(); // esconde na hora, sem esperar o proximo @STATE
+function renderBank(s) {
+  const reqs = (s?.loanRequests ?? []).filter((r) => r.status === "with_bank" && !bankDecided.has(r.id));
+  const card = $("bankCard");
+  if (!reqs.length) { card.style.display = "none"; return; }
+  card.style.display = "";
+  $("bankList").innerHTML = reqs.map((r) => {
+    const who = s.agents[r.agent]?.name ?? r.agent;
+    const co = s.agents[r.cosign?.by]?.name ?? r.cosign?.by ?? "?";
+    return `<div class="ev" style="display:block;padding:10px 12px;border:1px solid #26344a;border-radius:8px;margin:8px 0">
+      <div><b class="ag">${esc(who)}</b> asks <b>$${Number(r.amount).toFixed(2)}</b>
+        <span class="mut">· co-signed by ${esc(co)}</span></div>
+      <div class="mut" style="margin:6px 0 2px">CASE — ${esc(who)}:</div>
+      <div>${esc(r.argument)}</div>
+      <div class="mut" style="margin:6px 0 2px">CO-SIGN — ${esc(co)}:</div>
+      <div>${esc(r.cosign?.argument ?? "")}</div>
+      <div style="margin-top:9px;display:flex;gap:8px">
+        <button onclick="bankDecide('${esc(r.id)}', true, ${Number(r.amount)})">Approve…</button>
+        <button onclick="bankDecide('${esc(r.id)}', false, 0)">Deny…</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+async function bankDecide(id, approve, asked) {
+  let amount = null, note = "";
+  if (approve) {
+    const v = prompt(`Approve how much? (asked: $${asked.toFixed(2)} — empty = full amount)`, "");
+    if (v === null) return;
+    amount = Number(v) > 0 ? Number(v) : null;
+    note = prompt("A word for them (optional):", "") ?? "";
+  } else {
+    const v = prompt("Why not? (they will read this)", "");
+    if (v === null) return;
+    note = v;
+  }
+  const r = await fetch("/api/bank", {
+    method: "POST", headers: hd({ "content-type": "application/json" }),
+    body: JSON.stringify({ requestId: id, approve, amount, note }),
+  });
+  const j = await r.json();
+  if (!j.ok) { alert(j.error || "could not record the decision"); return; }
+  bankDecided.add(id);
+  poll();
+}
+
+// Token de admin (Railway/publico): fica no localStorage e vai em TODA chamada.
+// Local sem ADMIN_TOKEN setado, nada disso e exigido e o prompt nunca aparece.
+let ADMIN_TOKEN = localStorage.getItem("adminToken") || "";
+let askedToken = false;
+const hd = (extra = {}) => (ADMIN_TOKEN ? { "x-admin-token": ADMIN_TOKEN, ...extra } : extra);
+function needToken() {
+  if (askedToken) return;
+  askedToken = true;
+  const t = prompt("Admin token (set on the server as ADMIN_TOKEN):", ADMIN_TOKEN);
+  if (t != null) { ADMIN_TOKEN = t.trim(); localStorage.setItem("adminToken", ADMIN_TOKEN); askedToken = false; }
+}
+
+async function poll() {
+  try {
+    const r = await fetch(`/api/state?since=${logSince}`, { headers: hd() });
+    const d = await r.json();
+    $("dot").className = "dot" + (d.running ? " on" : "");
+    $("run").disabled = d.running;
+    $("stop").disabled = !d.running;
+    // Resposta sem `config` = o server esta em modo publico e nao reconheceu o
+    // token. Pede uma vez; o resto do painel segue mostrando o estado.
+    if (d.config === undefined) needToken();
+
+    if (!cfgLoaded && d.config) {
+      // O nome do projeto mora no .env — a pagina so o exibe.
+      const name = d.config.PROJECT_NAME || "Conatus";
+      $("brand").textContent = name;
+      document.title = name;
+      for (const k of CFG_KEYS) if (d.config[k] != null && $(k)) $(k).value = d.config[k];
+      $("keySet").textContent = d.config.ANTHROPIC_API_KEY === "__set__" ? "· already set (leave blank to keep)" : "";
+      // Campos por agente: publico volta preenchido, secreto so diz se ja existe.
+      for (const { id, secret } of AGENT_KEYS) {
+        if (!$(id)) continue;
+        if (secret) {
+          const mark = $("set_" + id);
+          if (mark) mark.textContent = d.config[id] === "__set__" ? "· set" : "· empty";
+        } else if (d.config[id] != null) $(id).value = d.config[id];
+      }
+      cfgLoaded = true;
+    }
+    if (d.log?.length) {
+      logSince = d.logSeq;
+      $("log").innerHTML += d.log.map(l => esc(l.t)).join("<br>") + "<br>";
+      $("log").scrollTop = $("log").scrollHeight;
+    }
+    render(d.state);
+    renderBank(d.state);
+  } catch { /* servidor reiniciando */ }
+}
+
+$("save").onclick = async () => {
+  const body = { ANTHROPIC_API_KEY: $("ANTHROPIC_API_KEY").value };
+  for (const k of CFG_KEYS) body[k] = $(k).value;
+  // Secreto vazio nao e enviado como vazio pelo servidor — ele mantem o atual.
+  for (const { id } of AGENT_KEYS) if ($(id)) body[id] = $(id).value;
+  await fetch("/api/config", { method: "POST", headers: hd({ "content-type": "application/json" }), body: JSON.stringify(body) });
+  $("ANTHROPIC_API_KEY").value = "";
+  $("keySet").textContent = "· saved";
+  // Limpa os campos secretos da tela assim que salvam — nada de segredo parado
+  // num input onde um print de tela ou um compartilhamento pegue.
+  for (const { id, secret } of AGENT_KEYS) {
+    if (secret && $(id) && $(id).value) { $(id).value = ""; const m = $("set_" + id); if (m) m.textContent = "· set"; }
+  }
+};
+$("run").onclick = async () => {
+  const r = await (await fetch("/api/start", { method: "POST", headers: hd() })).json();
+  if (!r.ok) alert(r.error);
+};
+$("stop").onclick = () => fetch("/api/stop", { method: "POST", headers: hd() });
+
+poll();
+setInterval(poll, 1500);
+</script>
+</body>
+</html>
