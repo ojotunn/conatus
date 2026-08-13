@@ -37,7 +37,12 @@
   .brand small{color:var(--mut); font-weight:500; letter-spacing:1px; font-size:10px}
   .live{display:inline-flex; align-items:center; gap:5px; font-size:9px; letter-spacing:1.5px;
     color:var(--neg); font-weight:700}
-  .live .d{width:6px; height:6px; border-radius:50%; background:var(--neg)}
+  .live .d{width:6px; height:6px; border-radius:50%; background:var(--neg); animation:pulse 1.6s infinite}
+  /* Estados que o poll aplica. Casa dormindo = ambar; motor parado = cinza e
+     sem pulso — quem chega tem que ver na hora que nao ha nada acontecendo. */
+  .live.rest{color:var(--warn)} .live.rest .d{background:var(--warn); animation:none}
+  .live.dark{color:var(--mut); font-weight:600} .live.dark .d{background:#3a4356; animation:none}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
   .spacer{flex:1}
   .shift{font-size:9.5px; padding:4px 11px; border-radius:99px; border:1px solid var(--line);
     color:var(--mut); text-transform:uppercase; letter-spacing:1.2px; margin-right:6px}
@@ -211,7 +216,9 @@
 
 <div class="top">
   <div class="brand"><span class="mark"></span><span id="brand">Conatus</span> <small id="tagline"></small></div>
-  <span class="live"><span class="d"></span>LIVE</span>
+  <!-- O selo era HTML fixo e dizia LIVE mesmo com a casa apagada (13/08/2026).
+       Agora segue a mesma regra da home: LIVE · RESTING · DARK. -->
+  <span class="live dark" id="liveBadge"><span class="d"></span><span id="liveTxt">DARK</span></span>
   <a href="/journal" target="_blank" style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
     color:var(--mut);text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:4px 11px;margin-right:6px">journal ↗</a>
   <a href="/store" target="_blank" style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
@@ -661,10 +668,22 @@ function brand(cfg) {
   branded = true;
 }
 
+// Mesma regra da home: so diz LIVE quando ha motor rodando E estado chegando.
+// Um palco que anuncia LIVE sobre uma tela de tracos e a pior primeira
+// impressao possivel — quem chegou acha que quebrou.
+function setLive(running, s) {
+  const on = !!running && !!s;
+  const rest = on && !!s.resting;
+  const badge = $("liveBadge");
+  badge.className = "live" + (on ? (rest ? " rest" : "") : " dark");
+  $("liveTxt").textContent = on ? (rest ? "RESTING" : "LIVE") : "DARK";
+}
+
 async function poll() {
   try {
     const d = await (await fetch("/api/state")).json();
     brand(d.config);
+    setLive(d.running, d.state);
     render(d.state);
   } catch { /* servidor reiniciando */ }
 }

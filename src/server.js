@@ -285,8 +285,17 @@ const server = http.createServer(async (req, res) => {
   // controle mudou pra /console — a home de um projeto publico nao pode ser a
   // sala de comando.
   if (url.pathname === "/" || url.pathname === "/index.html") {
-    if (fs.existsSync(SITE_HTML))
-      return send(res, 200, fs.readFileSync(SITE_HTML, "utf8"), "text/html; charset=utf-8");
+    if (fs.existsSync(SITE_HTML)) {
+      // og:image e og:url precisam de URL ABSOLUTA (robo de rede social nao
+      // roda JS nem resolve caminho relativo). Em vez de cravar o dominio no
+      // HTML, trocamos __ORIGIN__ pelo host de onde a pagina foi pedida — assim
+      // o cartao continua certo quando o dominio proprio entrar no lugar do
+      // *.up.railway.app, sem tocar no arquivo.
+      const proto = (req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
+      const host = (req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`).split(",")[0].trim();
+      const html = fs.readFileSync(SITE_HTML, "utf8").replaceAll("__ORIGIN__", `${proto}://${host}`);
+      return send(res, 200, html, "text/html; charset=utf-8");
+    }
     return send(res, 200, fs.readFileSync(PANEL_HTML, "utf8"), "text/html; charset=utf-8");
   }
 
