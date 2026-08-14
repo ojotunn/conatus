@@ -240,6 +240,43 @@ function reloadLiveConfig() {
   cfg.activeEndHour = n("ACTIVE_END_HOUR", cfg.activeEndHour);
   cfg.tradingEnabled = env.TRADING_ENABLED === undefined || String(env.TRADING_ENABLED).trim() === ""
     ? cfg.tradingEnabled : String(env.TRADING_ENABLED).trim() !== "0";
+
+  // ------------------------------------------------------------------------
+  // MAIS BOTOES AO VIVO (14/08/2026, vespera do lancamento).
+  //
+  // Estes eram puro ajuste e mesmo assim exigiam Stop->Start. Num show de 12h
+  // isso significa apagar a casa na frente da plateia para mexer num numero.
+  // Nenhum deles e estrutural: entram no cfg e valem no turno seguinte, igual
+  // aos de cima. O que continua exigindo parar e so codigo e chave.
+  // ------------------------------------------------------------------------
+
+  // Freios do trade. Sao os que a gente quer ao alcance da mao no meio do show:
+  // apertar o piso de liquidez ou o teto por operacao sem interromper nada.
+  cfg.minPoolUsd = n("MIN_POOL_USD", cfg.minPoolUsd);
+  cfg.maxPoolPct = n("MAX_POOL_PCT", cfg.maxPoolPct);
+  cfg.interventionsPerDay = n("INTERVENTIONS_PER_DAY", cfg.interventionsPerDay);
+  cfg.convictionOverride = n("CONVICTION_OVERRIDE", cfg.convictionOverride);
+  cfg.rebuttalTicks = n("REBUTTAL_TICKS", cfg.rebuttalTicks);
+  // Teto por operacao de cada um: e a personalidade em numero (Sable 10 / Rook
+  // 40). Vive no agente, nao no cfg — por isso escreve direto no estado.
+  const pctSable = n("MAX_TRADE_PCT_SABLE", state.agents.sable?.maxTradePct);
+  const pctRook = n("MAX_TRADE_PCT_ROOK", state.agents.rook?.maxTradePct);
+  if (state.agents.sable && Number.isFinite(pctSable)) state.agents.sable.maxTradePct = pctSable;
+  if (state.agents.rook && Number.isFinite(pctRook)) state.agents.rook.maxTradePct = pctRook;
+
+  // A SALA. O mint muda no dia do lancamento (a moeda passa a existir) e o
+  // interruptor de fala precisa estar ao alcance se o login remoto falhar.
+  cfg.liveChatMint = s("LIVE_CHAT_MINT", cfg.liveChatMint);
+  cfg.roomPostEnabled = b("ROOM_POST_ENABLED", cfg.roomPostEnabled);
+  cfg.chatPerTurn = n("CHAT_MSGS_PER_TURN", cfg.chatPerTurn);
+  cfg.roomPostCooldown = n("ROOM_POST_COOLDOWN_TICKS", cfg.roomPostCooldown);
+
+  // O RPC e lido de process.env a cada chamada (wallet.js e executor.js), e o
+  // ambiente do processo foi congelado no spawn. Escrever aqui e o que permite
+  // trocar de provedor com o show rodando — se o RPC engasgar no meio da noite,
+  // nao se apaga a casa para trocar de endereco.
+  const rpcNovo = (env.SOLANA_RPC ?? "").trim();
+  if (rpcNovo && rpcNovo !== process.env.SOLANA_RPC) process.env.SOLANA_RPC = rpcNovo;
 }
 
 // Estamos na janela de descanso? Hora local (0-23). Janela ativa [start, end);
