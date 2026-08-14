@@ -71,8 +71,18 @@ function saveCtxIds(map) {
   } catch { /* sem disco, contexto novo na proxima — só perde login */ }
 }
 
+// Nome da variavel que crava o context de um agente: BROWSERBASE_CTX_SABLE etc.
+const ctxEnvKey = (key) => `BROWSERBASE_CTX_${String(key).toUpperCase()}`;
+
 async function bbContextId(key) {
   if (key === SHARED) return null; // leitura avulsa nao persiste identidade
+  // CONTEXT CRAVADO POR VARIAVEL (13/08/2026). O id vinha so do arquivo em
+  // src/data — que no Railway nasce vazio, entao o servidor criava um context
+  // NOVO e o login feito aqui nunca chegava la. Com a variavel, a mesma
+  // identidade (e os mesmos cookies) valem nas duas pontas: loga uma vez, de
+  // onde for, e o navegador remoto sobe logado em qualquer lugar.
+  const cravado = String(process.env[ctxEnvKey(key)] ?? "").trim();
+  if (cravado) return cravado;
   const ids = loadCtxIds();
   if (ids[key]) return ids[key];
   const ctx = await bbFetch("/contexts", { projectId: process.env.BROWSERBASE_PROJECT_ID });
@@ -109,6 +119,13 @@ async function bbLaunch(key) {
     }
   } catch { /* sem live view, com screenshot */ }
   return browser;
+}
+
+// O id do context em uso por este agente — e ele que carrega o login entre
+// sessoes remotas. Serve ao `scripts/login-remoto.js`, que precisa dizer qual
+// valor cravar no Railway depois que a pessoa logou.
+export function contextIdFor(key) {
+  return String(process.env[ctxEnvKey(key)] ?? "").trim() || loadCtxIds()[key] || null;
 }
 
 // URL de live view da sessao ATIVA desta chave (null = sem live: local, sessao
