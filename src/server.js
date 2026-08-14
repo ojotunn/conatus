@@ -34,6 +34,7 @@ const PURCHASES_FILE = process.env.PURCHASES_FILE || path.join(ROOT, "src", "dat
 const PORT = Number(process.env.PORT) || 8432;
 
 import { SECRET_KEYS as SECRET_LIST, PUBLIC_AGENT_KEYS, redact } from "./lib/secrets.js";
+import * as mem from "./lib/memory.js";
 import * as pieces from "./lib/pieces.js";
 import { verifyPayment, USDC_MINT } from "./lib/wallet.js";
 import * as market from "./lib/market.js";
@@ -647,12 +648,14 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/persona") {
     const id = url.searchParams.get("id");
     if (!["sable", "rook"].includes(id)) return send(res, 400, { error: "unknown agent" });
-    const histDir = path.join(ROOT, "agents", "history");
+    // Personas moram no diretorio de dados (volume no Railway) — ver
+    // agentsDir em lib/memory.js. readPersona faz o seed do primeiro boot.
+    const histDir = path.join(mem.agentsDir(ROOT), "history");
     const versions = fs.existsSync(histDir)
       ? fs.readdirSync(histDir).filter((f) => f.startsWith(`${id}.v`) && f.endsWith(".md")).sort()
       : [];
     return send(res, 200, {
-      current: fs.readFileSync(path.join(ROOT, "agents", `${id}.md`), "utf8"),
+      current: mem.readPersona(ROOT, id),
       versions,
     });
   }

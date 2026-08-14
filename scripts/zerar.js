@@ -50,7 +50,9 @@ const PRESERVAR = [
   ["totals.json", "gasto vitalicio da casa (contabilidade, nao memoria)"],
   ["session-sable.json / session-rook.json", "sessao na pump.fun"],
   ["profiles/", "perfil do Chrome — e onde o login da pump.fun vive"],
-  ["../agents/*.md", "as personas — quem eles sao"],
+  // Desde 14/08 as personas VIVEM em src/data/agents/ (volume no Railway);
+  // o agents/ do repo e so o molde do dia 1. Nenhum dos dois e tocado aqui.
+  ["agents/ (e o seed ../agents/*.md)", "as personas — quem eles sao"],
 ];
 
 const linha = (t = "") => console.log(t);
