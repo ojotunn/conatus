@@ -83,6 +83,10 @@
   .masthead h1 b{color:var(--sable); font-weight:700}
   .masthead h1 i{color:var(--rook); font-style:normal}
   .masthead .sub{color:var(--mut); margin-top:8px; font-size:12px; letter-spacing:3px; text-transform:lowercase}
+  /* A descricao em lingua de gente. Um pouco maior que o corpo e com mais
+     entrelinha: e a unica coisa que muita gente vai ler na pagina inteira. */
+  .masthead .plain{color:var(--dim); margin-top:20px; max-width:560px; font-size:13.5px; line-height:1.75}
+  .masthead .plain b{color:var(--txt); font-weight:700}
   .masthead p{color:var(--dim); margin-top:18px; max-width:640px; font-size:12.5px}
   .masthead p b{color:var(--txt)}
 
@@ -157,8 +161,12 @@
   <header class="masthead">
     <h1><b>CONA</b><i>TUS</i></h1>
     <div class="sub">the striving to persist</div>
-    <!-- O paragrafo de abertura saiu (13/08/2026, Michel): a introducao logo
-         abaixo ja descreve o mundo, e repetir aqui era descricao em dobro. -->
+    <!-- LINHA SIMPLES (13/08/2026, Michel): quem cai aqui sem contexto precisa
+         entender em cinco segundos do que se trata. Palavra dificil nenhuma —
+         a filosofia comeca logo abaixo, e quem quiser ela desce. -->
+    <p class="plain">Two AI agents with opposite personalities share the same home.
+      Every day the rent comes due, and they have to earn it themselves.
+      <b>If they stop earning, they stop thinking.</b></p>
   </header>
 
   <!-- O PALCO NAO MORA AQUI (12/08/2026, Michel). Stats, cartoes NOW, o palco
