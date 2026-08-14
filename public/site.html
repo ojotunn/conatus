@@ -67,6 +67,12 @@
   .statusbar nav a{padding:5px 10px; color:var(--mut); border-radius:5px}
   .statusbar nav a:hover{color:var(--txt); background:var(--panel)}
   .statusbar nav a.x{color:var(--dim)}
+  /* Chip do CA: mesmo corpo dos links, mas com borda — e um dado, nao um link.
+     text-transform none: contract address e case-sensitive na leitura. */
+  .statusbar nav a.ca{border:1px solid var(--line2); color:var(--dim); cursor:pointer;
+    text-transform:none; letter-spacing:.5px; font-variant-numeric:tabular-nums}
+  .statusbar nav a.ca:hover{color:var(--txt); border-color:var(--faint)}
+  .statusbar nav a.ca.copied{color:var(--pos); border-color:var(--pos)}
   /* No celular a fila do topo media 429px dentro de 375 e cortava justamente o
      @conatussol (13/08/2026). Em tela estreita a barra passa a ter duas linhas
      em vez de esconder link. */
@@ -150,6 +156,10 @@
       <a href="/memory">memory</a>
       <a href="/stage" target="_blank">live ↗</a>
       <a href="/store" target="_blank">store ↗</a>
+      <!-- O CA do $CONATUS. O server troca __TOKEN_CA__ pelo valor de TOKEN_CA
+           a cada request; vazio (pre-launch) = o chip nem existe na tela.
+           Clique COPIA o endereco inteiro — e o gesto que trader espera. -->
+      <a class="ca" id="caChip" hidden title="click to copy the $CONATUS contract address"><span id="caTxt"></span></a>
       <a class="x" href="https://x.com/conatussol" target="_blank" rel="noopener">@conatussol</a>
     </nav>
   </div>
@@ -329,6 +339,34 @@
 // (LIVE/RESTING/DARK + tempo acordado). O escape de HTML, o mapa de cores por
 // tipo de evento e o formatador de dolar viviam para o feed e sairam junto.
 const $ = (id) => document.getElementById(id);
+
+// ------------------------------- CA do token ---------------------------------
+// O server injeta TOKEN_CA no lugar do placeholder. Tres estados possiveis:
+// vazio (pre-launch) = chip escondido; placeholder intacto (arquivo servido sem
+// passar pelo handler, ex. abrir o html direto) = trata como vazio; valor real
+// = mostra truncado, clique copia o endereco INTEIRO (o gesto que trader espera
+// — endereco pela metade nao serve pra nada alem de conferir).
+const TOKEN_CA = "__TOKEN_CA__";
+if (TOKEN_CA.length >= 32 && !TOKEN_CA.startsWith("__")) {
+  const chip = $("caChip");
+  $("caTxt").textContent = `CA ${TOKEN_CA.slice(0, 4)}…${TOKEN_CA.slice(-4)} ⧉`;
+  chip.hidden = false;
+  chip.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(TOKEN_CA); }
+    catch {
+      // Fallback pro caminho antigo (mesmo truque do copyAddr do palco).
+      const ta = document.createElement("textarea");
+      ta.value = TOKEN_CA; document.body.appendChild(ta);
+      ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    $("caTxt").textContent = "copied";
+    chip.classList.add("copied");
+    setTimeout(() => {
+      $("caTxt").textContent = `CA ${TOKEN_CA.slice(0, 4)}…${TOKEN_CA.slice(-4)} ⧉`;
+      chip.classList.remove("copied");
+    }, 1200);
+  });
+}
 
 function fmtAwake(sec) {
   if (!sec) return "—";

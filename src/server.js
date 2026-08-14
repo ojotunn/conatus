@@ -51,6 +51,10 @@ const KEYS = [
   "SELL_RATE_USD", "SELL_PER_DAY",
   "BOUNTY_RATE_USD", "BOUNTY_PER_DAY",
   "COMMISSION_RUGCHECK_USD", "COMMISSION_ANALYSIS_USD",
+  // TOKEN_CA = o contract address do $CONATUS, exibido no topo do site.
+  // Vazio ate o lancamento; no dia, colar no /console e salvar — o site mostra
+  // na hora, sem redeploy (o server injeta a cada request).
+  "TOKEN_CA",
   "LIVE_CHAT_MINT", "OWNER_WALLET", "CHAT_MSGS_PER_TURN",
   "ROOM_POST_ENABLED", "ROOM_POST_COOLDOWN_TICKS",
   "TREASURY_USD", "SEASON_START_USD", "RENT_ENABLED", "RENT_MULTIPLIER",
@@ -294,7 +298,11 @@ const server = http.createServer(async (req, res) => {
       // *.up.railway.app, sem tocar no arquivo.
       const proto = (req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
       const host = (req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`).split(",")[0].trim();
-      const html = fs.readFileSync(SITE_HTML, "utf8").replaceAll("__ORIGIN__", `${proto}://${host}`);
+      // __TOKEN_CA__ vem da config a CADA request — colar o CA no /console no
+      // dia do lancamento faz o site mostrar na hora, sem redeploy.
+      const html = fs.readFileSync(SITE_HTML, "utf8")
+        .replaceAll("__ORIGIN__", `${proto}://${host}`)
+        .replaceAll("__TOKEN_CA__", String(readConfig().TOKEN_CA ?? "").trim());
       return send(res, 200, html, "text/html; charset=utf-8");
     }
     return send(res, 200, fs.readFileSync(PANEL_HTML, "utf8"), "text/html; charset=utf-8");
