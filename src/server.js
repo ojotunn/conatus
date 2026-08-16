@@ -704,6 +704,34 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
+  // RECARGA DA TREASURY. O dinheiro real ja esta na Anthropic; isto avisa o
+  // motor (via treasury-topups.json, escritor unico: o server) que ele pode
+  // contar com mais $N. O engine aplica no proximo ciclo — inclusive em coma
+  // (treasury zerada), quando a chegada religa o show sozinha.
+  if (url.pathname === "/api/treasury" && req.method === "POST") {
+    if (adminBlocked(req, res)) return;
+    const b = await readBody(req);
+    const usd = Number(b.usd);
+    if (!(usd > 0) || usd > 10000) return send(res, 400, { error: "usd must be a number between 0 and 10000" });
+    const file = process.env.TREASURY_TOPUPS_FILE || path.join(ROOT, "src", "data", "treasury-topups.json");
+    let db = { topups: [] };
+    try { db = JSON.parse(fs.readFileSync(file, "utf8")); } catch { /* primeiro uso */ }
+    if (!Array.isArray(db.topups)) db = { topups: [] };
+    const topup = {
+      id: `t${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      usd,
+      note: String(b.note ?? "").slice(0, 120),
+      at: Date.now(),
+    };
+    db.topups.push(topup);
+    db.topups = db.topups.slice(-200);
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(db, null, 2));
+    } catch (e) { return send(res, 500, { error: `could not persist the topup: ${e.message}` }); }
+    return send(res, 200, { ok: true, id: topup.id });
+  }
+
   if (url.pathname === "/api/start" && req.method === "POST") {
     if (adminBlocked(req, res)) return;
     return send(res, 200, startEngine());

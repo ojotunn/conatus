@@ -63,11 +63,19 @@ function push(room, raw) {
 }
 
 // Abre (ou reusa) a sala do mint. Resolve quando o historico chega.
+// Rejoin de sala caida REAPROVEITA messages/seen da anterior: o historico que
+// o servidor mandar de novo nao vira mensagem "nova" no palco.
 export function join(mint, { timeout = 15000 } = {}) {
   const existing = rooms.get(mint);
   if (existing && !existing.closed) return Promise.resolve(existing);
 
-  const room = { ws: null, messages: [], seen: new Set(), config: null, closed: false };
+  const room = {
+    ws: null,
+    messages: existing?.messages ?? [],
+    seen: existing?.seen ?? new Set(),
+    config: null,
+    closed: false,
+  };
   rooms.set(mint, room);
 
   return new Promise((resolve, reject) => {
@@ -174,6 +182,29 @@ export function fresh(mint, who, max = 8) {
 export function roomInfo(mint) {
   const room = rooms.get(mint);
   return room ? { config: room.config, connected: !room.closed, held: room.messages.length } : null;
+}
+
+// RELIGA a sala se caiu ou nunca conectou (o boot da noite 2, 15/08/2026,
+// levou um 502 passageiro e o show ficou surdo ate restart manual — nunca
+// mais). Guarda de 60s entre tentativas: queda persistente do lado da pump
+// nao pode virar marreta no servidor deles. Devolve a sala conectada, ou
+// null se ainda esta na janela de espera.
+const ultimaTentativa = new Map(); // mint -> timestamp
+export async function ensure(mint, { retryMs = 60000 } = {}) {
+  const room = rooms.get(mint);
+  if (room && !room.closed) return room;
+  const antes = ultimaTentativa.get(mint) ?? 0;
+  if (Date.now() - antes < retryMs) return null;
+  ultimaTentativa.set(mint, Date.now());
+  return join(mint);
+}
+
+// So para as provas: derruba a conexao como se a rede tivesse caido.
+export function _dropForTest(mint) {
+  const room = rooms.get(mint);
+  if (!room) return;
+  room.closed = true;
+  try { room.ws?.close(); } catch { /* ja caiu */ }
 }
 
 // ----------------------------- ENVIO (autenticado) ----------------------------

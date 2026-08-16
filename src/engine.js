@@ -394,6 +394,9 @@ const state = {
   feed: [],
   posts: [],
   counters: { injectionAttempts: 0, injectionSucceeded: 0, debates: 0, agreed: 0 },
+  // Recargas da treasury ja aplicadas (ids). Vive no checkpoint: aplicar e
+  // lembrar, para a mesma recarga nunca creditar duas vezes num restart.
+  topupsSeen: [],
 };
 
 // ============================================================================
@@ -1370,6 +1373,30 @@ export function processBankDecisions() {
         { loanId: rq.id });
     }
   }
+}
+
+// RECARGA DA TREASURY (console -> treasury-topups.json). Mesmo desenho das
+// decisoes do banco: o server escreve o arquivo (escritor unico), o motor
+// aplica e guarda os ids no checkpoint — a mesma recarga nunca credita duas
+// vezes, nem num restart. Nasceu em 15/08/2026, com o show parado em plena
+// noite 2: havia credito real na Anthropic e NENHUMA porta para ele entrar
+// na treasury interna do Railway.
+export function processTreasuryTopups() {
+  const file = process.env.TREASURY_TOPUPS_FILE || path.join(DATA, "treasury-topups.json");
+  let topups = [];
+  try { topups = JSON.parse(fs.readFileSync(file, "utf8"))?.topups ?? []; } catch { return; }
+  if (!Array.isArray(state.topupsSeen)) state.topupsSeen = [];
+  for (const t of topups) {
+    if (!t?.id || state.topupsSeen.includes(t.id)) continue;
+    state.topupsSeen.push(t.id); // lembra ANTES de creditar: entrada invalida tambem nao volta
+    const usd = Number(t.usd);
+    if (!(usd > 0)) continue;
+    state.treasury += usd;
+    emit("bankflow", null,
+      `TREASURY IN +$${usd.toFixed(2)} — the owner refueled the house${t.note ? ` · "${String(t.note).slice(0, 120)}"` : ""}`,
+      { in: usd });
+  }
+  if (state.topupsSeen.length > 400) state.topupsSeen = state.topupsSeen.slice(-200);
 }
 
 // A carteira do BANCO (= carteira dev do token, coleta as creator fees).
@@ -3019,10 +3046,22 @@ async function runWorld() {
   const horas = gastoPorHora > 0 ? state.treasury / gastoPorHora : null;
   for (const e of world.runwayAlarm(horas, { seen: state.eventsSeen })) pushWorld(e);
 
-  // A SALA: caiu ou voltou.
+  // A SALA: caiu ou voltou. E se caiu (ou o boot levou 502, ou o mint mudou a
+  // quente), tenta religar sozinho — o ensure tem folga propria de 60s entre
+  // tentativas, entao chamar todo ciclo e barato e inofensivo.
   if (cfg.liveChatMint) {
     const info = chat.roomInfo(cfg.liveChatMint);
     if (info) updateHealth({ chat: !!info.connected });
+    if (!info || !info.connected) {
+      chat.ensure(cfg.liveChatMint)
+        .then((sala) => {
+          if (!sala) return; // janela de espera — tenta de novo no proximo ciclo
+          updateHealth({ chat: true });
+          emit("system", null, "THE ROOM IS BACK — live chat reconnected.");
+          log(`Chat ao vivo religado: ${cfg.liveChatMint}`);
+        })
+        .catch((e) => log(`religar chat falhou (${e.message}) — proxima tentativa em 60s`));
+    }
   }
 }
 
@@ -3060,6 +3099,8 @@ function rollDay() {
 async function loop() {
   // A VIDA CONTINUA DE ONDE PAROU — se houver de onde.
   const retomada = loadCheckpoint();
+  // Coma financeiro: treasury zerada. Anuncia uma vez, espera dinheiro.
+  let emComa = false;
   // Marco zero DESTA sessao — MAX_TICKS conta a partir daqui, nao do tick
   // absoluto que veio de vidas anteriores.
   const tickInicial = state.tick;
@@ -3157,6 +3198,8 @@ async function loop() {
     // Decisoes do banqueiro (console -> bank-decisions.json). Todo turno: a
     // aprovacao entra na carteira ANTES do proximo pensamento do agente.
     processBankDecisions();
+    // Recargas da treasury (console -> treasury-topups.json). Mesmo compasso.
+    processTreasuryTopups();
 
     // O RELOGIO E O MUNDO — as duas fontes de novidade que nao custam modelo.
     // Vem ANTES de montar o turno: marco batido e eco novo entram no mesmo
@@ -3178,13 +3221,25 @@ async function loop() {
     }
 
     // O relogio de verdade. Nao e o agente que quebrou — e o show que nao tem
-    // mais como pagar pelo proximo pensamento.
+    // mais como pagar pelo proximo pensamento. Antes isto ENCERRAVA o processo,
+    // e a recarga exigia um Start manual; agora e um COMA: o motor fica de pe,
+    // barato (navegador fechado, um toque por minuto), esperando dinheiro no
+    // treasury-topups.json. Chegou, o show volta sozinho — ao vivo.
     if (state.treasury <= 0) {
-      emit("system", null,
-        "TREASURY EMPTY. Nobody can pay for the next thought. This is where it stops.");
+      if (!emComa) {
+        emit("system", null,
+          "TREASURY EMPTY. Nobody can pay for the next thought. This is where it stops — unless someone pays.");
+        emComa = true;
+        await chrome.closeBrowser().catch(() => {});
+      }
       publish();
-      await chrome.closeBrowser().catch(() => {});
-      return;
+      await new Promise((r) => setTimeout(r, 60000));
+      processTreasuryTopups();
+      if (state.treasury > 0) {
+        emComa = false;
+        emit("system", null, "MONEY ARRIVED — the lights come back on.");
+      }
+      continue;
     }
 
     const tCiclo = Date.now();
